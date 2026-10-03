@@ -16,11 +16,16 @@
 ## 关于随包的人设文本
 
 `preset/agent.cordis.yml` **已包含一份可用的角色人设**，装完即可对话。它来自开源项目
-[Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)，许可与归属见
-[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+[Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)（MIT），
+**并已取得原作者同意**（2026-10-03 沟通确认，公开征询记录见
+[issue #137](https://github.com/Playa-Cyrene/Cyrene-Agent/issues/137)）。
+许可与归属细节见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
 **你也可以完全不用它**：清空或替换 `prefix:` 里的内容即可，本插件的装配机制不依赖具体人设
 （写法见 [`docs/writing-your-preset.md`](./docs/writing-your-preset.md)）。
+
+> ⚠️ 原作者的同意覆盖的是**提示词文本**本身；**角色 IP**（昔涟及《崩坏：星穹铁道》
+> 相关内容）归 HoYoverse / 米哈游所有，原作者无权代为授权，**非商业使用条款继续适用**。
 
 本仓库**不包含**任何 Live2D 模型、立绘、美术资源或音频——这些不在随包范围内，
 也不在 MIT 授权范围内。
