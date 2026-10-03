@@ -96,17 +96,43 @@ node scripts/install.mjs
 **这就是取舍**：人格纯度与干活能力不能兼得。本插件选择前者，并且做成**独立预设**——
 你原有的工作模式不受影响，需要干活时切回去就行。
 
-## 可选依赖：表情包
+## 推荐搭配（第三方插件，均不在本仓库内）
 
-预设末尾预留了一段表情包规则，它会调用 `send_meme` 工具。
-该工具由第三方插件 [dsh-meme](https://github.com/yyh-001/dsh-meme)（MIT）提供：
+本插件只负责「纯对话预设」这一件事。界面美化、表情包这些能力都由**别的插件**提供——
+请各自从它们的仓库安装，本仓库**不捆绑**任何第三方插件、图库或主题资源。
+
+### 表情包
+
+预设末尾预留了一段表情包规则，它会调用 `send_meme` 工具，
+该工具由 [dsh-meme](https://github.com/yyh-001/dsh-meme)（MIT）提供：
 
 ```bash
 dsh plugin --profile <你的 profile> add dsh-meme
 ```
 
 **不装也能用**，只是模型没有 `send_meme` 可调，表情包规则自然不生效。
-本仓库不捆绑任何表情图库——图片版权归各自作者。
+图库内图片版权归各自作者。
+
+### 界面美化
+
+如果你想要"桌面伴侣"那种观感，可以自行搭配以下插件（均为 MIT，各自独立维护）：
+
+| 插件 | 作用 | 上游 |
+|---|---|---|
+| `dsh-dream-skin` | 皮肤 / 壁纸 / 面板透明度 | [RevolutionLA/dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) |
+| `dsh-ui-boost` | 主色调着色、Dock 等界面微调 | [DoshinJiu/dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) |
+| `dsh-anime-theme` | 随机二次元壁纸背景 | [zxr2115-1/dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) |
+
+安装方式以各自仓库的说明为准，通常是：
+
+```bash
+dsh plugin --profile <你的 profile> add <插件名>
+```
+
+**注意：不要把这些插件的配置文件（`~/.dsh/` 下的 `dream-skin.json`、
+`anime-theme/config.json` 等）提交到公开仓库**——它们含有你本机的壁纸历史、
+图片数据与绝对路径，既不适合公开，换台机器也会失效。详见
+[`docs/theme-recipe.md`](./docs/theme-recipe.md)。
 
 ## 自定义
 
@@ -146,6 +172,7 @@ dsh-cyrene-chat/
 │   └── install.mjs          跨平台（Node）
 ├── docs/
 │   ├── writing-your-preset.md   怎么写自己的人设
+│   ├── theme-recipe.md          主题配方：哪些参数可分享、哪些绝不能
 │   └── why-no-host-logic.md     为什么宿主半体是空壳
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
