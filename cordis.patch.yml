@@ -1,0 +1,14 @@
+# dsh-cyrene-chat bundle patch
+#
+# 只做一件事：把宿主半体挂进 loader，让 `dsh plugin --profile <name> add dsh-cyrene-chat`
+# 之后 DSH 能加载到这个包。
+#
+# 刻意保持"纯 insert(id/name)"形式 —— 这是可热挂载的，不需要重启即可生效。
+# 不要在这里写 config.memeRoot 之类的机器相关路径：patch 里的硬编码路径在
+# 别人机器上必然指向不存在的目录，插件会直接起不来（这是 dsh-meme 踩过的坑）。
+#
+# 预设不在这里注册 —— DSH 没有公开的预设安装 API，预设由 scripts/install.*
+# 拷贝到 ~/.dsh/.agent-presets/chat/，由 DSH 自身按目录扫描发现。
+- insert:
+    - id: dsh-cyrene-chat
+      name: 'dsh-cyrene-chat'

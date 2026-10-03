@@ -1,0 +1,61 @@
+{
+  "name": "dsh-cyrene-chat",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 插件：增加「纯文本对话模式」agent 预设骨架——整份替换系统提示词进行纯角色对话，只保留联网搜索与表情包。不含任何角色文本，由使用者自行填入人设。",
+  "type": "module",
+  "main": "./index.js",
+  "license": "MIT",
+  "author": "Cyrene-xl",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cyrene-xl/dsh-cyrene-chat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Cyrene-xl/dsh-cyrene-chat/issues"
+  },
+  "homepage": "https://github.com/Cyrene-xl/dsh-cyrene-chat#readme",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "dsh",
+    "agent-preset",
+    "persona",
+    "chat"
+  ],
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "plugin.json",
+    "dsh.plugin.json",
+    "preset/",
+    "scripts/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./plugin.json": "./plugin.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "dsh": {
+    "id": "dsh-cyrene-chat",
+    "name": "纯文本对话模式",
+    "displayName": "纯文本对话模式",
+    "version": "0.1.0",
+    "repo": "Cyrene-xl/dsh-cyrene-chat",
+    "permissions": "不在运行时申请任何权限",
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "harness:check": "node --check index.js",
+    "install:preset": "node scripts/install.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

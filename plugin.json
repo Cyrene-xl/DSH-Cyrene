@@ -1,0 +1,30 @@
+{
+  "id": "dsh-cyrene-chat",
+  "name": "dsh-cyrene-chat",
+  "displayName": "纯文本对话模式",
+  "version": "0.1.0",
+  "description": "为 DeepSeek Harness 增加一个「纯文本对话模式」agent 预设骨架：整份替换系统提示词进行纯角色对话，只保留联网搜索与表情包，不挂文件 / Shell / 设备工具。不含任何角色文本，由使用者自行填入人设。",
+  "author": "Cyrene-xl",
+  "license": "MIT",
+  "platform": "all",
+  "harnessVersion": ">=0.1.0",
+  "entry": "index.js",
+  "main": "./index.js",
+  "permissions": [
+    "不在运行时申请任何权限"
+  ],
+  "tags": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh-plugin",
+    "agent-preset",
+    "persona",
+    "chat",
+    "角色扮演"
+  ],
+  "category": "preset",
+  "contributes": {
+    "agentPreset": "./preset",
+    "replaceSystemPrompt": true
+  }
+}
