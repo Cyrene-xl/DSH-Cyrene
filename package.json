@@ -32,6 +32,7 @@
     "scripts/",
     "docs/",
     "README.md",
+    "LICENSES/",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
   ],
