@@ -17,9 +17,15 @@
 
 `preset/agent.cordis.yml` **已包含一份可用的角色人设**，装完即可对话。它来自开源项目
 [Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)（MIT），
-**并已取得原作者同意**（2026-10-03 沟通确认，公开征询记录见
-[issue #137](https://github.com/Playa-Cyrene/Cyrene-Agent/issues/137)）。
+**并已取得原作者同意**（2026-10-03 经 B 站私信沟通，作者回复同意使用）。
 许可与归属细节见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+
+> 上游本就是 MIT，本仓库已按 MIT 要求保留版权声明与许可证全文
+> （[`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)）；
+> 上述沟通属礼貌性确认，不构成额外授权条件。
+> 公开征询留痕见 [issue #137](https://github.com/Playa-Cyrene/Cyrene-Agent/issues/137)——
+> 该 issue 目前仍为 open 且无回复，**授权是走私信取得的，不是在该 issue 里**，
+> 请勿以该 issue 的空回复判定授权状态。
 
 **你也可以完全不用它**：清空或替换 `prefix:` 里的内容即可，本插件的装配机制不依赖具体人设
 （写法见 [`docs/writing-your-preset.md`](./docs/writing-your-preset.md)）。
@@ -93,10 +99,11 @@ node scripts/install.mjs
 
 `$DSH_HOME` 环境变量可覆盖默认的 `~/.dsh`。
 
-### 3. 填入你的人设
+### 3. （可选）换成人设
 
-模板里 `prefix:` 的内容是占位文本，**照着
-[`docs/writing-your-preset.md`](./docs/writing-your-preset.md) 换成你自己的**。
+`prefix:` 里**已经是一份完整可用的昔涟人设**，装完直接就能对话，这一步可以跳过。
+若想换成别的角色，照着
+[`docs/writing-your-preset.md`](./docs/writing-your-preset.md) 替换即可。
 改完直接切换模式即可，无需重装插件。
 
 ### 4. 启用
@@ -184,7 +191,7 @@ dsh-cyrene-chat/
 ├── plugin.json              DSH 插件清单
 ├── dsh.plugin.json          同上（兼容不同版本的清单名）
 ├── preset/
-│   ├── agent.cordis.yml     人设模板 + 工具挂载（需你自己填内容）
+│   ├── agent.cordis.yml     完整人设 + 工具挂载（可直接用，也可替换）
 │   └── preset.yml           模态元信息
 ├── scripts/
 │   ├── install.sh           Linux / macOS
