@@ -17,15 +17,19 @@
 
 `preset/agent.cordis.yml` **已包含一份可用的角色人设**，装完即可对话。它来自开源项目
 [Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)（MIT），
-**并已取得原作者同意**（2026-10-03 经 B 站私信沟通，作者回复同意使用）。
-许可与归属细节见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+**并已取得原作者同意**。许可与归属细节见
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
+> **授权凭据**：原作者在
+> [issue #137](https://github.com/Playa-Cyrene/Cyrene-Agent/issues/137#issuecomment-5969268084)
+> 公开回复同意使用，并将该 issue 以 **closed as completed** 结案（2026-10-03）。
+>
 > 上游本就是 MIT，本仓库已按 MIT 要求保留版权声明与许可证全文
 > （[`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)）；
-> 上述沟通属礼貌性确认，不构成额外授权条件。
-> 公开征询留痕见 [issue #137](https://github.com/Playa-Cyrene/Cyrene-Agent/issues/137)——
-> 该 issue 目前仍为 open 且无回复，**授权是走私信取得的，不是在该 issue 里**，
-> 请勿以该 issue 的空回复判定授权状态。
+> 上述确认属礼貌性征询，不构成额外授权条件。
+>
+> ⚠️ **该确认明确排除 Live2D 模型**——模型需另行向模型原作者取得授权。
+> 本仓库不包含任何模型或美术资源；日后若要加入，必须自行取得授权，不得援引本确认。
 
 **你也可以完全不用它**：清空或替换 `prefix:` 里的内容即可，本插件的装配机制不依赖具体人设
 （写法见 [`docs/writing-your-preset.md`](./docs/writing-your-preset.md)）。
