@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Cyrene-xl
+Copyright (c) 2026 Playa
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,19 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-**授权范围说明：**
-
-- 本 MIT 授权覆盖本仓库的**代码**（`index.js`、`cordis.patch.yml`、`scripts/`、
-  `package.json` 等），为本项目作者原创。
-- `preset/agent.cordis.yml` 内的**人设文本**来自开源项目 Cyrene-Agent
-  （MIT License, Copyright (c) 2026 Playa），其许可证副本见
-  `LICENSES/Cyrene-Agent-LICENSE.txt`。
-- **角色 IP**（昔涟 / Cyrene 及《崩坏：星穹铁道》相关角色、世界观、名称与美术）
-  归 HoYoverse / 米哈游所有，**不属于本 MIT 授权范围**。
-- 因底层角色 IP 涉及米哈游同人创作规范，**本仓库中包含角色 IP 的衍生物禁止商业使用**
-  （售卖、付费社群、含广告变现、打包销售等）。
-
-完整说明见 `THIRD_PARTY_NOTICES.md`。

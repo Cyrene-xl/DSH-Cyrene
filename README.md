@@ -1,15 +1,29 @@
-> **This project is an open-source UI & preset skeleton for DeepSeek Harness. It does NOT contain any copyrighted game assets or character lore. Cyrene (昔涟) belongs to HoYoverse/miHoYo. Users must provide their own local preset text.**
+> **This project is an open-source preset plugin for DeepSeek Harness. It does NOT contain any game assets (Live2D models, artwork, audio). The bundled persona text is adapted from the open-source Cyrene-Agent project (MIT, Copyright (c) 2026 Playa). Cyrene (昔涟) and Honkai: Star Rail belong to HoYoverse/miHoYo. This is an unofficial fan tool — non-commercial use only.**
 
 ---
 
 # dsh-cyrene-chat
 
 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）提供一套
-**「纯文本对话模式」agent 预设骨架**：整份替换系统提示词，让模型纯以角色人格对话，
+**「纯文本对话模式」agent 预设**：整份替换系统提示词，让模型纯以角色人格对话，
 只保留联网搜索与表情包，**不挂文件 / Shell / 设备工具**。
 
-**本仓库不含任何角色文本、游戏资源或美术资产**——`preset/` 是一份空白模板，
-人设由使用者自行填入（见 [怎么写自己的人设预设](./docs/writing-your-preset.md)）。
+> ⚠️ **禁止商业使用。** 本项目为非官方同人作品，与 HoYoverse / 米哈游无任何关联、
+> 背书或赞助关系。角色 IP 归 HoYoverse / 米哈游所有。随包的人设文本整理自开源项目
+> Cyrene-Agent（MIT，Copyright (c) 2026 Playa）。**使用前请先读
+> [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。**
+
+## 关于随包的人设文本
+
+`preset/agent.cordis.yml` **已包含一份可用的角色人设**，装完即可对话。它来自开源项目
+[Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)，许可与归属见
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+
+**你也可以完全不用它**：清空或替换 `prefix:` 里的内容即可，本插件的装配机制不依赖具体人设
+（写法见 [`docs/writing-your-preset.md`](./docs/writing-your-preset.md)）。
+
+本仓库**不包含**任何 Live2D 模型、立绘、美术资源或音频——这些不在随包范围内，
+也不在 MIT 授权范围内。
 
 ## 它解决什么问题
 
@@ -194,12 +208,20 @@ dsh-cyrene-chat/
 
 ## 授权
 
-本项目（含 `preset/` 模板文本）采用 **MIT License**，见 [`LICENSE`](./LICENSE)。
+本仓库的**代码**采用 **MIT License**，见 [`LICENSE`](./LICENSE)。
 
-**本仓库不包含任何第三方角色文本或游戏资源。** Cyrene（昔涟）及《崩坏：星穹铁道》
-相关角色与美术的知识产权归 **HoYoverse / 米哈游** 所有；本项目为非官方同人周边工具，
-与 IP 方无任何关联、背书或赞助关系。
+`preset/agent.cordis.yml` 内的**人设文本**来自开源项目
+[Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)
+（MIT License, Copyright (c) 2026 Playa），许可证副本见
+[`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)。
 
-你自行填入的人设文本，其来源与授权由你自己负责——请勿把游戏内文本、
-他人创作的角色卡或美术资源打包进公开发布的仓库。详见
+**角色 IP 声明**：Cyrene（昔涟）及《崩坏：星穹铁道》相关角色、世界观、名称与美术的
+知识产权归 **HoYoverse / 米哈游** 所有，**不属于本 MIT 授权范围**。本项目为
+非官方同人周边工具，与 IP 方无任何关联、背书或赞助关系。
+
+**非商业使用条款**：因底层角色 IP 涉及米哈游同人创作规范，**本仓库中包含角色 IP 的
+衍生物禁止商业使用**——包括但不限于售卖、付费社群、广告变现、打包销售。
+
+本仓库不包含 Live2D 模型、立绘、美术资源或音频。若你要在其基础上继续创作并公开分发，
+请保留本声明与许可证副本，并同样声明角色 IP 归属与禁止商业使用。完整说明见
 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。

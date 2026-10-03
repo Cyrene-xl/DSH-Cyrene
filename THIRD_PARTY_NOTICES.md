@@ -1,39 +1,81 @@
 # 第三方内容与授权声明 / Third-Party Notices
 
-## 结论：本仓库不包含任何第三方角色文本或游戏资源
+## 一句话概括
 
-本插件（`index.js`、`cordis.patch.yml`、`scripts/`、`preset/`、`package.json` 等）
-**全部为本项目作者原创**，采用 MIT License（见 `LICENSE`）。
+- **本仓库的代码**（`index.js`、`cordis.patch.yml`、`scripts/`、`package.json` 等）：MIT，本项目作者原创。
+- **`preset/agent.cordis.yml` 内的人设文本**：来自开源项目 **Cyrene-Agent**，MIT，`Copyright (c) 2026 Playa`。
+- **角色 IP**（昔涟 / Cyrene 及《崩坏：星穹铁道》相关内容）：归 **HoYoverse / 米哈游** 所有。
+- **禁止商业使用**：含角色 IP 的衍生物不得用于售卖、付费社群、广告变现、打包销售等。
 
-`preset/` 目录是一份**空白模板**：其中的占位文本为本项目自行撰写，
-不含任何角色设定、游戏文本、美术资源、Live2D 模型或音频。
+---
 
-## 角色 IP 声明
+## 1. 人设文本的来源与授权
+
+`preset/agent.cordis.yml` 中的人设与语气内容整理自：
+
+- 项目：**Cyrene-Agent** — <https://github.com/Playa-Cyrene/Cyrene-Agent>
+- 原作者：Playa
+- 源文件：`prompts/chat_system.md`、`prompts/chat_identity.md`、`prompts/soul.md`、`prompts/canon_quotes.md`
+- 上游许可证：MIT License，`Copyright (c) 2026 Playa`
+- 许可证副本：见 [`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)
+
+MIT License 允许使用、复制、修改、合并、发布与再分发，条件是在副本中保留上述版权声明
+与许可证全文。本仓库已履行该条件。
+
+上游在 README 中对其自身许可范围的说明（转述）：源代码采用 MIT；
+角色 IP、Live2D 模型与美术资产不属于 MIT 授权范围，分别遵循其模型授权文件与米哈游同人创作规范处理。
+
+## 2. 角色 IP 声明
 
 Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观、名称与美术，
 其知识产权归 **HoYoverse / 米哈游** 所有。
 
 本项目为**非官方同人周边工具**，与 HoYoverse / 米哈游**无任何关联、背书或赞助关系**。
-本仓库不主张对上述 IP 的任何权利，也不分发其任何内容。
+本项目不主张对上述 IP 的任何权利。
 
-## 使用者的责任
+## 3. 非商业使用条款
 
-本插件只提供"整份替换系统提示词"的**装配机制**与人设模板结构。
-你自行填入的人设文本，其来源与授权由你自己负责。请特别注意：
+承袭上游的同一立场：**因底层角色 IP 涉及米哈游同人创作规范，本仓库中
+包含角色 IP 的衍生物禁止商业使用。**
 
-1. **不要**把游戏内文本、他人创作的角色卡、Live2D 模型或美术资源打包进公开发布的仓库。
-2. 若你引用了他人的开源人设（例如某些开源 Agent 项目里的提示词），
-   请遵守其许可、保留署名，并自行确认其再分发条款。
-3. 涉及游戏角色 IP 的衍生物通常**禁止商业使用**，公开发布前请确认相应同人创作规范。
-4. 请勿声称本插件是官方作品，或暗示得到 IP 方授权。
+明确禁止的情形包括但不限于：
 
-## 可选依赖
+- 售卖本插件或其修改版
+- 放入付费社群、付费内容作为权益发放
+- 通过广告、赞助等方式直接变现
+- 与其他商品打包销售
 
-- [dsh-meme](https://github.com/yyh-001/dsh-meme)（MIT）：提供 `send_meme` 表情包工具。
-  本仓库**不捆绑**任何表情图库；图片版权归各自作者。
+## 4. 本仓库不包含什么
 
-## 命名说明
+为避免扩大授权风险，本仓库**不包含**以下内容，请使用者自行解决：
 
-本插件仓库名中的 "cyrene" 仅用于说明该预设的**设计意图源自同人角色对话场景**，
-不表示本仓库包含或主张任何相关权利。若你希望完全避免 IP 关联，
-可自行重命名包名与仓库名（见 README「重命名」一节）。
+- ❌ Live2D 模型文件（`.moc3` / `.motion3.json` / `.physics3.json` / 纹理等）
+- ❌ 角色立绘、美术资源、音频、语音
+- ❌ 游戏内文本的成段收录（`preset/agent.cordis.yml` 中引用的原作台词摘录，
+  其内容版权归 HoYoverse / 米哈游所有，仅作语气参考用途）
+
+## 5. 可选依赖（第三方插件）
+
+以下插件**不在本仓库内**，请各自从原始仓库安装。本仓库不捆绑、不再分发它们：
+
+| 插件 | 作者 | 授权 |
+|---|---|---|
+| [dsh-meme](https://github.com/yyh-001/dsh-meme) | yyh-001 | MIT |
+| [dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) | RevolutionLA | MIT |
+| [dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) | DoshinJiu | MIT |
+| [dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) | zxr2115-1 | MIT |
+
+表情图库与壁纸图片的版权归各自作者所有。
+
+## 6. 使用者的责任
+
+1. 若你**不再需要**人设文本，可以直接删除 `preset/agent.cordis.yml` 中的相关内容，
+   或改用空白模板——本插件的装配机制不依赖具体人设。
+2. 若你在其基础上**继续创作**并公开分发，请保留本文件与许可证副本，
+   并同样声明角色 IP 归属与禁止商业使用。
+3. 请勿声称本插件是官方作品，或暗示得到 IP 方授权。
+
+## 7. 遇到异议时
+
+若上游作者（Cyrene-Agent / Playa）或 IP 方对本仓库的分发有异议，
+维护者应配合下架相关内容，或改为「只分发骨架、由使用者自备人设」的形式。

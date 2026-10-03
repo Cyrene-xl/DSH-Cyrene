@@ -1,7 +1,7 @@
 {
   "name": "dsh-cyrene-chat",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 插件：增加「纯文本对话模式」agent 预设骨架——整份替换系统提示词进行纯角色对话，只保留联网搜索与表情包。不含任何角色文本，由使用者自行填入人设。",
+  "description": "DeepSeek Harness 插件：增加「纯文本对话模式」agent 预设——整份替换系统提示词进行纯角色对话，只保留联网搜索与表情包。随包人设文本整理自开源项目 Cyrene-Agent（MIT）。",
   "type": "module",
   "main": "./index.js",
   "license": "MIT",
