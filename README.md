@@ -148,10 +148,12 @@ dsh plugin --profile <你的 profile> add dsh-meme
 dsh plugin --profile <你的 profile> add <插件名>
 ```
 
-**注意：不要把这些插件的配置文件（`~/.dsh/` 下的 `dream-skin.json`、
-`anime-theme/config.json` 等）提交到公开仓库**——它们含有你本机的壁纸历史、
-图片数据与绝对路径，既不适合公开，换台机器也会失效。详见
+**想复刻推荐观感？** 完整步骤（插件清单 + 参数配方）见
 [`docs/theme-recipe.md`](./docs/theme-recipe.md)。
+
+**注意：不要把这些插件的配置文件（`~/.dsh/` 下的 `dream-skin.json`、
+`anime-theme/config.json` 等）提交到公开仓库或分享给别人**——它们含有你本机的壁纸历史、
+图片数据与绝对路径，既不适合公开，换台机器也会失效。**分享参数，不分享文件。**
 
 ## 自定义
 
@@ -191,7 +193,7 @@ dsh-cyrene-chat/
 │   └── install.mjs          跨平台（Node）
 ├── docs/
 │   ├── writing-your-preset.md   怎么写自己的人设
-│   ├── theme-recipe.md          主题配方：哪些参数可分享、哪些绝不能
+│   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
 │   └── why-no-host-logic.md     为什么宿主半体是空壳
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
