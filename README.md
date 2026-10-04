@@ -297,11 +297,14 @@ dsh-cyrene-chat/
 │   ├── install.bat          Windows 双击入口
 │   └── install.mjs          跨平台（Node）
 ├── tests/
-│   └── worldbook.test.mjs   世界书解析 / 匹配 / 组装 / 注入层的单元测试
+│   ├── worldbook.test.mjs   世界书解析 / 匹配 / 组装 / 注入层的单元测试
+│   └── memory.test.mjs      记忆的净化 / 限长 / forget 边界 / 注入块包裹
 ├── docs/
 │   ├── writing-your-preset.md   怎么写自己的人设
 │   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
-│   └── host-side.md             宿主半体与会话级插件
+│   ├── host-side.md             宿主半体与会话级插件
+│   └── pitfalls.md              三个只能踩出来的 DSH 行为（动手前必读）
+├── AGENTS.md                上面那份的要点版，给在此仓库工作的 agent 用
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
 ```
@@ -345,6 +348,11 @@ CI 在 `.github/workflows/test.yml`，Node 22 与 24 各跑一遍语法检查与
 世界书那部分刻意做成**纯函数 + 薄注入层**：`worldbook/{parse,match,assemble}.mjs`
 不碰任何 DSH API，可以直接单测；只有 `worldbook/index.mjs` 与 DSH 交互。
 要改匹配逻辑，改前者；要改注入时机，改后者。
+
+**动手前请先读 [`docs/pitfalls.md`](./docs/pitfalls.md)** —— 里面记了三个**只能踩出来、
+不在 DSH 官方文档里**的行为（装配跑在用户消息落库之前、`llm/stream` 的 messages 冻结、
+预设里 `provide()` 会让整个预设挂载失败）。它们都会让你写出"看着对、其实静默失效"的代码。
+[`AGENTS.md`](./AGENTS.md) 是同一份内容的要点版，给在此仓库工作的 agent 用。
 
 ## 授权
 
