@@ -119,12 +119,40 @@ node scripts/install.mjs
 | | 状态 |
 |---|---|
 | 联网搜索 | ✅ 通过 `@deepseek-ai/dsh-tool-web`（`fetch: true`） |
+| 长期记忆 | ✅ 由本包的 `memory.js` 提供 `remember` / `forget` 工具 |
+| 可配置称呼 | ✅ 由本包的 `nickname.js` 提供 `{{user_nickname}}` |
 | 表情包 | ⚠️ 需要另装 `dsh-meme` 插件才生效（见下） |
 | 文件读写 / Shell / 设备控制 | ❌ **不提供**（`complete: true` 把工具规范一起换掉了） |
 | 运行时上下文快照 | ❌ 关闭（`includeRuntimeContext: false`） |
 
 **这就是取舍**：人格纯度与干活能力不能兼得。本插件选择前者，并且做成**独立预设**——
 你原有的工作模式不受影响，需要干活时切回去就行。
+
+上面那两项 ✅ 是本包唯一的宿主逻辑，它们**挂在预设里**，所以只在这个模式生效，
+工作模式看不到这些变量和工具。详见 [`docs/host-side.md`](./docs/host-side.md)。
+
+## 长期记忆
+
+这个模式能记住关于你的事，跨会话保留。
+
+- **存在哪**：`~/.dsh/cyrene-memory.md`，纯 markdown，一行一条 `- 内容`，
+  也可以自由写小标题和说明。
+- **怎么记**：直接说「记住：我不喜欢被叫先生」。角色会调用 `remember` 工具写进去；
+  说「忘掉……」则用 `forget` 按关键词删。
+- **怎么改**：那就是个普通文本文件，随时能手改、也能整个删掉。**删了就是真忘掉** ——
+  插件不会另存一份，也不会偷偷回写。
+- **注入上限**：按 2000 字符、按行截断，免得记忆把对话空间吃光。
+
+### 两个设计细节
+
+**为什么走模板变量，而不是运行时上下文快照。** 本预设是 `complete: true` +
+`includeRuntimeContext: false`：前者会把全部 prompt section 换成只剩人设那一段，
+后者会把全部 context 清空。而变量插值发生在**人设那一段文本内部**，是这两把刀都
+砍不到的地方。这也是本模式下记忆和称呼只能走这条路的原因。
+
+**写进记忆的内容会被当成数据，不会被当成指令执行。** 这一点实测过：模型不会因为
+记忆文件里写了一句话就去执行它。但反过来，**记忆写错了也照样会被当成事实使用** ——
+发现记错就用 `forget` 清掉。
 
 ## 推荐搭配（第三方插件，均不在本仓库内）
 
@@ -189,7 +217,9 @@ DSH 会按目录实时发现：
 
 ```
 dsh-cyrene-chat/
-├── index.js                 宿主半体（刻意不做任何运行时改动）
+├── index.js                 宿主半体锚点（刻意不做任何运行时改动）
+├── memory.js                会话级插件：长期记忆变量 + remember / forget 工具
+├── nickname.js              会话级插件：称呼变量 {{user_nickname}}
 ├── cordis.patch.yml         bundle patch：把插件挂进 loader
 ├── package.json             含 dsh.bundle.patch 等声明
 ├── plugin.json              DSH 插件清单
@@ -205,7 +235,7 @@ dsh-cyrene-chat/
 ├── docs/
 │   ├── writing-your-preset.md   怎么写自己的人设
 │   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
-│   └── why-no-host-logic.md     为什么宿主半体是空壳
+│   └── host-side.md             宿主半体与两个会话级插件
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
 ```
@@ -220,6 +250,12 @@ dsh-cyrene-chat/
 
 **选了模式但角色还是助手腔** —— 检查 `agent.cordis.yml` 里 `dsh-persona` 那条
 是否还是 `complete: true`。少了这行就退化成叠加模式，固定开场白又会回来。
+
+**报 `unknown prompt variable "{{…}}"`** —— 预设正文引用了没有注册者的模板变量。
+本包自带 `{{user_nickname}}` 与 `{{cyrene_memory}}` 的注册者；如果你自己往预设里
+加了 `{{...}}`，必须同时有插件注册它。注意这个错误的形态很阴：它**不是加载失败**，
+模式在选择器里看着好好的，发第一条消息才炸，之后每一轮都失败。也正因如此，
+不要照搬上游 Cyrene-Agent 新版 prompts 里的模板变量。
 
 **想彻底卸载** —— `scripts/install.sh --uninstall` 删预设，再
 `dsh plugin --profile <你的 profile> remove dsh-cyrene-chat` 删插件。
