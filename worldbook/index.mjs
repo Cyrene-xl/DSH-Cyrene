@@ -182,8 +182,30 @@ export function apply(ctx) {
   const config = loadConfig();
   let cache = { at: 0, entries: [], error: null };
 
-  /** 会话 id → 上一轮注入的命中块文本，用于"内容相同就不重复注入"。 */
+  /**
+   * 会话 id → 上一轮注入的命中块文本，用于"内容相同就不重复注入"。
+   *
+   * **有界**：Map 保持插入顺序，超上限就淘汰最早的那个。没有这一步的话，一个长跑的
+   * 进程里每来一个会话就多一条，只增不减。
+   */
   const lastHit = new Map();
+  /** 最多记多少个会话的去重状态。够用即可 —— 这只是抑制重复注入的优化，丢了不致命。 */
+  const MAX_TRACKED_SESSIONS = 64;
+
+  /**
+   * 记一次注入去重状态，必要时淘汰最旧的会话。
+   * @param sessionId - 会话 id。
+   * @param text - 本轮注入的文本。
+   */
+  function trackHit(sessionId, text) {
+    lastHit.delete(sessionId); // 重新插入以刷新 LRU 位置
+    lastHit.set(sessionId, text);
+    while (lastHit.size > MAX_TRACKED_SESSIONS) {
+      const oldest = lastHit.keys().next();
+      if (oldest.done === true) break;
+      lastHit.delete(oldest.value);
+    }
+  }
 
   /**
    * 取世界书条目，带 TTL 缓存。读盘或解析失败时退回上一次结果，否则空数组 ——
@@ -295,7 +317,7 @@ export function apply(ctx) {
         if (config.trace) logLine('命中块跳过：与上一轮完全相同');
         return decision;
       }
-      if (sessionId !== '') lastHit.set(sessionId, text);
+      if (sessionId !== '') trackHit(sessionId, text);
 
       // 手写描述符，不 import @deepseek-ai/dsh-llm / dsh-tools ——
       // 那类包在 link 安装下解析不到（ERR_MODULE_NOT_FOUND），

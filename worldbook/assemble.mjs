@@ -37,28 +37,12 @@ function renderSection(section, withTitle) {
 }
 
 /**
- * 把命中按「稳定」与「动态」分成两块。
- *
- * 为什么要分两块：注入走 `systemPrompt.context()` 时，**内容一变就会追加一条新快照**
- * （快照是 append 型 surface 事件，不会自动替换旧的）。而常驻条目内容恒定，
- * 如果把它和关键词命中揉在一块，那么每次命中变化都会连带重发那批常驻内容 ——
- * 长会话里累积得很快。
- *
- * 拆开之后：常驻块内容永不变 → 只落库一次；命中块变化时才追加。
- *
- * @param matched - `matchWorldbook()` 的产物。
- * @param options - 组装选项。
- * @returns `{ static, dynamic }`，各自是 `assembleWorldbook()` 的产物。
- */
-export function assembleSplit(matched, options = {}) {
-  const permanent = Array.isArray(matched?.permanent) ? matched.permanent : [];
-  const staticBlock = assembleWorldbook({ permanent, primary: [], chained: [] }, options);
-  const dynamicBlock = assembleWorldbook({ permanent: [], primary: matched?.primary, chained: matched?.chained }, options);
-  return { static: staticBlock, dynamic: dynamicBlock };
-}
-
-/**
  * 组装注入块。顺序：常驻 → 关键词命中 → 连带（连带带 `【标题】`，与上游一致）。
+ *
+ * 「常驻与命中分两块」这个需求，现在**由调用方（注入层）自己完成** —— 常驻块走
+ * `systemPrompt.context()`、命中块走 `agent/pre-step`，两条通道各调一次本函数即可，
+ * 不需要一个额外的组装函数。早先这里有个 `assembleSplit()` 就是干这个的，改成两条通道后
+ * 它成了死代码（只有测试在用），已删除，免得日后两边逻辑各自漂移。
  *
  * @param matched - `matchWorldbook()` 的产物，或 `{ permanent, primary, chained }`。
  * @param options - `{ format, titles, titleChained }`。

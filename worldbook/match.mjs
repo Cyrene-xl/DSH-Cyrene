@@ -36,19 +36,23 @@ function norm(text, caseSensitive) {
 /**
  * 构造待匹配语料。
  *
- * d0 = 本轮用户消息；d1 = 上一轮用户消息；d2 = 上上轮。上游的扫描深度就建在这套
- * 槽位上（D0/D1/D2）。这里只接受调用方已经挑好的文本 —— 从哪拿到它们（会话事件、
- * 出站请求……）属于注入层的事，不属于匹配层。
+ * d0 = 本轮用户消息；d1 = 上一轮；d2、d3、d4 依次更早。上游的扫描深度建在这套槽位上
+ * （D0/D1/D2），本实现把它扩到 D4，好让配置里的 `scanDepth: 1..5` 真的生效
+ * —— 早先只造三个槽位、再把深度静默夹到 3，写 5 既不报错也不起作用。
+ *
+ * 这里只接受调用方已经挑好的文本 —— 从哪拿到它们（会话事件、出站请求……）属于注入层的事。
  *
  * @param input - `{ userText, previousTexts }`；previousTexts 按由新到旧排列。
- * @returns `{ d0, d1, d2 }`，缺失的槽位为空串。
+ * @returns `{ d0, d1, d2, d3, d4 }`，缺失的槽位为空串。
  */
 export function buildCorpus(input = {}) {
   const prev = Array.isArray(input.previousTexts) ? input.previousTexts : [];
   return {
     d0: String(input.userText ?? ''),
     d1: String(prev[0] ?? ''),
-    d2: String(prev[1] ?? '')
+    d2: String(prev[1] ?? ''),
+    d3: String(prev[2] ?? ''),
+    d4: String(prev[3] ?? '')
   };
 }
 
@@ -101,10 +105,10 @@ function byPriority(a, b) {
  */
 export function matchWorldbook(entries, corpus, options = {}) {
   const maxActive = Number.isFinite(options.maxActive) ? options.maxActive : DEFAULT_MAX_ACTIVE;
-  const depth = Math.min(Math.max(1, Number(options.scanDepth) || 3), 3);
+  const depth = Math.min(Math.max(1, Number(options.scanDepth) || 3), 5);
   const caseSensitive = options.caseSensitive === true;
 
-  const slots = [corpus?.d0, corpus?.d1, corpus?.d2].slice(0, depth);
+  const slots = [corpus?.d0, corpus?.d1, corpus?.d2, corpus?.d3, corpus?.d4].slice(0, depth);
   const parts = slots
     .map((text, i) => ({ slot: `d${i}`, text }))
     .filter((part) => String(part.text ?? '').trim() !== '');

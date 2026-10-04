@@ -1,0 +1,31 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines 声明的是 >=22。22 与 24 都跑一遍 —— 测试命令的目录/glob 解析
+        # 在这两个大版本上表现不同，正是这里最容易踩坑的地方。
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 本仓库的运行时代码只用 node: 内置模块，测试也只用 node:test ——
+      # 所以**不需要 npm install**（也因此没有 lockfile 可装）。
+      - name: 语法检查
+        run: npm run harness:check
+
+      - name: 单元测试
+        run: npm test

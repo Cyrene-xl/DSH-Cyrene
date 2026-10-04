@@ -1,10 +1,13 @@
 /**
  * 世界书解析 / 匹配 / 组装的单元测试。
  *
- * 运行：node --test tests/
+ * 运行：`npm test`（等价于 `node --test tests/*.mjs`）
  *
- * 除了构造数据，最后还直接拿真实世界书目录跑一遍 —— 纯函数好测，但要证明它
- * 真的能读你手上那份数据，只能拿那份数据测。
+ * ⚠️ 不要写 `node --test tests/` —— 带尾斜杠时 Node 会把目录当模块解析，
+ * 报 `MODULE_NOT_FOUND: Cannot find module '…/tests'`。这个坑本文件头部早先就踩过。
+ *
+ * 除了构造数据，最后还直接拿**随包的那份世界书数据**跑一遍 —— 要验证的是
+ * "发出去的那份能被读进来"，基准就该是发出去的那份。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseWorldbookText, loadWorldbookDirectory } from '../worldbook/parse.mjs';
 import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE } from '../worldbook/match.mjs';
-import { assembleWorldbook, assembleSplit, buildInjection, DEFAULT_FORMAT } from '../worldbook/assemble.mjs';
+import { assembleWorldbook, buildInjection, DEFAULT_FORMAT } from '../worldbook/assemble.mjs';
 import { recentUserTexts, apply as applyWorldbook } from '../worldbook/index.mjs';
 
 /**
@@ -280,19 +283,30 @@ test('组装：抬头措辞可覆盖', () => {
   assert.ok(built.text.startsWith('X\nY\n'));
 });
 
-test('组装：分块时，常驻块内容恒定、命中块才随语料变', () => {
-  const of = (q) => assembleSplit(buildInjection(ENTRIES, buildCorpus({ userText: q })).matched);
+test('组装：常驻块内容恒定、命中块才随语料变', () => {
+  // 注入层就是这么做的：常驻块与命中块**各调一次 assembleWorldbook**（早先有个
+  // assembleSplit() 专门干这个，改成两条通道后成了死代码，已删除）。这里照着那个
+  // 用法测，保证"常驻块逐字节稳定、命中块随语料变"这个性质还在。
+  const of = (q) => {
+    const m = buildInjection(ENTRIES, buildCorpus({ userText: q })).matched;
+    return {
+      staticText: assembleWorldbook({ permanent: m.permanent, primary: [], chained: [] }).text,
+      dynamicText: assembleWorldbook({ permanent: [], primary: m.primary, chained: m.chained }).text
+    };
+  };
   const a = of('翁法罗斯之心');
   const b = of('德谬歌');
   // 常驻块必须逐字节相同 —— 否则同一条 context 会反复重发，长会话里越积越多。
-  assert.equal(a.static.text, b.static.text);
-  assert.equal(a.static.text, of('随便说点什么').static.text);
-  assert.ok(a.static.text.includes('说话自然一点'));
+  assert.equal(a.staticText, b.staticText);
+  assert.equal(a.staticText, of('随便说点什么').staticText);
+  assert.ok(a.staticText.includes('说话自然一点'));
   // 命中块必须不同，否则说明匹配根本没起作用。
   // 注意：不能拿「迷迷」和「德谬歌」比 —— 它俩都是同一条的触发词，命中本就该一样。
-  assert.notEqual(a.dynamic.text, b.dynamic.text);
-  assert.ok(a.dynamic.text.includes('权杖深处的意识核心'));
-  assert.ok(b.dynamic.text.includes('三个名字，一个存在'));
+  assert.notEqual(a.dynamicText, b.dynamicText);
+  // 注意这个测试用的是文件顶部那份**合成样例** ENTRIES，不是随包的真实数据 ——
+  // 所以这里断言样例里的串。真实数据用的是另一套串（见「真实数据」那组测试）。
+  assert.ok(a.dynamicText.includes('权杖深处的意识核心'));
+  assert.ok(b.dynamicText.includes('三个名字，一个存在'));
 });
 
 // ───────────────────────── 注入层：从会话事件取语料 ─────────────────────────
