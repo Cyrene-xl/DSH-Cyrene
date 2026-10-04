@@ -14,7 +14,7 @@
 export const name = 'dsh-cyrene-chat';
 
 /** 与 package.json 保持一致的版本号（健康检查用）。 */
-export const version = '0.2.1';
+export const version = '0.2.2';
 
 /**
  * 不注入任何宿主服务。

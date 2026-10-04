@@ -121,14 +121,15 @@ node scripts/install.mjs
 | 联网搜索 | ✅ 通过 `@deepseek-ai/dsh-tool-web`（`fetch: true`） |
 | 长期记忆 | ✅ 由本包的 `memory.js` 提供 `remember` / `forget` 工具 |
 | 可配置称呼 | ✅ 由本包的 `nickname.js` 提供 `{{user_nickname}}` |
+| 世界书 | ✅ 由本包的 `worldbook/` 提供，**数据随包发运**（61 条） |
 | 表情包 | ⚠️ 需要另装 `dsh-meme` 插件才生效（见下） |
-| 文件读写 / Shell / 设备控制 | ❌ **不提供**（`complete: true` 把工具规范一起换掉了） |
-| 运行时上下文快照 | ❌ 关闭（`includeRuntimeContext: false`） |
+| 文件读写 / Shell / 设备控制 | ❌ **不提供**（对话模式只挂 7 个工具，实测无 `bash` / `read`） |
+| 运行时上下文快照 | ✅ 开启（`includeRuntimeContext: true`，世界书依赖它） |
 
 **这就是取舍**：人格纯度与干活能力不能兼得。本插件选择前者，并且做成**独立预设**——
 你原有的工作模式不受影响，需要干活时切回去就行。
 
-上面那两项 ✅ 是本包唯一的宿主逻辑，它们**挂在预设里**，所以只在这个模式生效，
+上面那些 ✅ 是本包的宿主逻辑，它们**挂在预设里**，所以只在这个模式生效，
 工作模式看不到这些变量和工具。详见 [`docs/host-side.md`](./docs/host-side.md)。
 
 ## 长期记忆
@@ -145,14 +146,55 @@ node scripts/install.mjs
 
 ### 两个设计细节
 
-**为什么走模板变量，而不是运行时上下文快照。** 本预设是 `complete: true` +
-`includeRuntimeContext: false`：前者会把全部 prompt section 换成只剩人设那一段，
-后者会把全部 context 清空。而变量插值发生在**人设那一段文本内部**，是这两把刀都
-砍不到的地方。这也是本模式下记忆和称呼只能走这条路的原因。
+**为什么记忆走模板变量。** 本预设是 `complete: true`，它会把全部 prompt section
+换成只剩人设那一段；而变量插值发生在**人设那一段文本内部**，是这把刀砍不到的地方。
+记忆和称呼都走这条路，正是因为它们必须活下来。（世界书用的是另一条通道，见下节。）
 
 **写进记忆的内容会被当成数据，不会被当成指令执行。** 这一点实测过：模型不会因为
 记忆文件里写了一句话就去执行它。但反过来，**记忆写错了也照样会被当成事实使用** ——
 发现记错就用 `forget` 清掉。
+
+## 世界书
+
+昔涟带着一份**随包发运的世界书**：61 条设定条目，覆盖她自己、相关角色、世界观与剧情。
+它不靠她去"查资料"，而是**按你这轮说的话自动挑出相关的几条**，注入进上下文。
+
+- **数据在哪**：包内的 `worldbook/data/`。装上就有，**不需要你自备任何东西**。
+- **怎么触发**：条目分两类 —— 常驻的每轮都在；其余靠触发词，命中你这句才注入。
+- **上限**：每轮最多注入 8 条命中条目（常驻不占这个名额），免得一次塞太多。
+- **换数据**：想用自己的世界书，在 `~/.dsh/cyrene-worldbook.json` 里写
+  `{"dir": "/你的/目录"}` 覆盖。
+- **关掉它**：同一个文件里写 `{"enabled": false}`。
+
+### 它和「长期记忆」是两套东西
+
+| | 长期记忆 | 世界书 |
+| --- | --- | --- |
+| 内容从哪来 | 从对话里**攒**出来的 | **预先写好**的设定 |
+| 存哪 | `~/.dsh/cyrene-memory.md` | 包内 `worldbook/data/` |
+| 怎么进去 | 模板变量 `{{cyrene_memory}}` | 运行时上下文快照 |
+| 什么时候变 | 你让她记、或你手改 | 命中变化时 |
+
+### 一条必须知道的依赖
+
+世界书走 `systemPrompt.context()`，而这一项会被 `includeRuntimeContext: false`
+**整体清空**。所以本预设把它设成了 `true` —— 代价是上下文里会多出两段策略文字
+（文件策略、审批策略，约 400 字符，内容稳定、只落库一次）。
+
+**如果你把它改回 `false`，世界书会静默失效** —— 不报错，只是一句话都注不进去。
+
+### 来源与参考
+
+世界书的**条目格式与字段语义**（触发词 / 常驻 / 内在价值 / 优先级 / 连带触发词）
+来自 Cyrene-Agent 的 `src/main/rag/worldbook.ts`，**不是本项目发明的**；本项目的匹配器
+是它的等效简化实现，去掉了 DMAE 激活状态机，因此 `内在价值` 不生效、`优先级` 成为主排序键。
+
+「命中块挂在 `agent/pre-step` 上」这个**做法**参考了两个社区插件（代码一行未抄）：
+
+- [dsh-local-vector-memory](https://github.com/liangxiaobing520/dsh-local-vector-memory)
+- [dsh-universal-worldbook](https://github.com/TritiumWang/dsh-universal-worldbook)
+
+细节见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) 第 1 节与第 7 节。
 
 ## 推荐搭配（第三方插件，均不在本仓库内）
 
@@ -220,6 +262,12 @@ dsh-cyrene-chat/
 ├── index.js                 宿主半体锚点（刻意不做任何运行时改动）
 ├── memory.js                会话级插件：长期记忆变量 + remember / forget 工具
 ├── nickname.js              会话级插件：称呼变量 {{user_nickname}}
+├── worldbook/
+│   ├── index.mjs            会话级插件：世界书注入（常驻块走 context，命中块走 pre-step）
+│   ├── parse.mjs            解析 Cyrene-Agent 格式的条目（纯函数）
+│   ├── match.mjs            触发词 / 常驻 / 连带匹配（纯函数）
+│   ├── assemble.mjs         组装注入块（纯函数）
+│   └── data/                随包发运的世界书数据（61 条，5 个文件）
 ├── cordis.patch.yml         bundle patch：把插件挂进 loader
 ├── package.json             含 dsh.bundle.patch 等声明
 ├── plugin.json              DSH 插件清单
@@ -232,10 +280,12 @@ dsh-cyrene-chat/
 │   ├── install.ps1          Windows PowerShell
 │   ├── install.bat          Windows 双击入口
 │   └── install.mjs          跨平台（Node）
+├── tests/
+│   └── worldbook.test.mjs   世界书解析 / 匹配 / 组装 / 注入层的单元测试
 ├── docs/
 │   ├── writing-your-preset.md   怎么写自己的人设
 │   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
-│   └── host-side.md             宿主半体与两个会话级插件
+│   └── host-side.md             宿主半体与会话级插件
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
 ```

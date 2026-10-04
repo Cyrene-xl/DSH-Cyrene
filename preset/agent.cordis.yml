@@ -9,11 +9,17 @@
 #   无任何关联、背书或赞助关系。包含角色 IP 的衍生物禁止商业使用
 #   （售卖、付费社群、含广告变现、打包销售等）。详见 THIRD_PARTY_NOTICES.md。
 #
-# complete: true = 这套提示词就是全部系统提示词，不叠加编码 Agent 的身份 /
-#   工具规范 / 运行时上下文。代价是该模式不提供文件、Shell、设备工具。
+# complete: true = 这套提示词就是全部系统提示词，不叠加编码 Agent 的身份 / 工具规范。
+#   代价是该模式不提供文件、Shell、设备工具（联网搜索与表情包是单独挂的）。
+#
+# ⚠️ includeRuntimeContext 必须为 true：世界书靠 systemPrompt.context() 注入运行时
+#   快照，这一项若为 false 会把所有 context 整体清空，世界书会**静默失效**（不报错，
+#   只是一句话都注不进去）。代价是上下文里多出两段策略文字（文件策略、审批策略），
+#   内容稳定、只落库一次。
 #
 # 模板变量：本文件用了 {{user_nickname}} 和 {{cyrene_memory}}，两者都由本包提供、
 #   由本文件末尾挂载的插件（dsh-cyrene-chat/nickname 与 /memory）注册。
+#   世界书不用模板变量，它走 context()，所以不需要在正文里占位。
 #
 # ⚠️ 不要手写没注册过的 {{...}}，也不要照搬上游 prompts/ 的模板变量：DSH 的
 #   dsh-system-prompt 遇未注册变量会在**装配期直接抛错**，表现不是预设加载失败，
@@ -25,7 +31,7 @@
   name: '@deepseek-ai/dsh-persona'
   config:
     complete: true
-    includeRuntimeContext: false
+    includeRuntimeContext: true
     prefix: |
       # 系统规则（Chat 模式专用）
 
@@ -896,3 +902,18 @@
 # 记忆本体是 <DSH_HOME>/cyrene-memory.md，纯文本，可手改、可删。
 - id: cyrene-memory
   name: 'dsh-cyrene-chat/memory'
+
+# 世界书：按 Cyrene-Agent 的条目格式，命中即往上下文尾部注入一段背景。
+#
+# 它走 systemPrompt.context()（不是模板变量），所以：
+#   1. 上面 includeRuntimeContext 必须为 true，否则整体被清空、静默失效；
+#   2. 不需要在人设正文里占位 —— 正文里没有也不需要 {{cyrene_worldbook}}。
+#
+# 「常驻」块内容恒定，走 context() 只落库一次；「命中」块需要本轮用户消息，
+# 走 agent/pre-step（assemble 跑在用户消息落库之前，读会话拿不到本轮消息）。
+#
+# 条目数据**随包发运**，在 worldbook/data/（61 条）。默认目录用 import.meta.url
+# 相对模块解析，装到哪都成立；要换成自己的世界书，在 <DSH_HOME>/cyrene-worldbook.json
+# 里用 dir 覆盖，或在该文件里写 enabled:false 关掉。
+- id: dsh-cyrene-worldbook
+  name: 'dsh-cyrene-chat/worldbook'
