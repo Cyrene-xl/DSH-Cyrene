@@ -1,6 +1,6 @@
 {
   "name": "dsh-cyrene-chat",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DeepSeek Harness 插件：增加「纯文本对话模式」agent 预设——整份替换系统提示词进行纯角色对话，并附带长期记忆（remember / forget）与可配置称呼；联网搜索保留，表情包需另装 dsh-meme。随包人设文本整理自开源项目 Cyrene-Agent（MIT）。",
   "type": "module",
   "main": "./index.js",
@@ -49,7 +49,7 @@
     "id": "dsh-cyrene-chat",
     "name": "纯文本对话模式",
     "displayName": "纯文本对话模式",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "repo": "Cyrene-xl/dsh-cyrene-chat",
     "permissions": "不在运行时申请任何权限",
     "bundle": {

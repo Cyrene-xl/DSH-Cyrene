@@ -16,6 +16,10 @@
 - 项目：**Cyrene-Agent** — <https://github.com/Playa-Cyrene/Cyrene-Agent>
 - 原作者：Playa
 - 源文件：`prompts/chat_system.md`、`prompts/chat_identity.md`、`prompts/soul.md`、`prompts/canon_quotes.md`
+- 语气规则：预设中「## 语气规则」那一段（句式禁止 / 语气参考 / 回复边界）来自上游
+  `src/main/orchestrator/tone-injector.ts` 的 `DEFAULT_RULES` —— 即上游
+  `prompts/tone-rules.md` 缺失时的内置兜底值。这一段在原应用里是**每轮随请求尾部注入**的，
+  不是人设文件的一部分；本仓库把它并入预设正文，位置与上游的注入顺序一致（人设之后）。
 - 上游许可证：MIT License，`Copyright (c) 2026 Playa`
 - 许可证副本：见 [`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)
 
