@@ -52,7 +52,7 @@
     "id": "dsh-cyrene",
     "name": "纯文本对话模式",
     "displayName": "纯文本对话模式",
-    "version": "0.2.3",
+    "version": "0.3.0",
     "repo": "Cyrene-xl/DSH-Cyrene",
     "permissions": "不在运行时申请任何权限",
     "bundle": {

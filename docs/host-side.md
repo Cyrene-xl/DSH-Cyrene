@@ -22,12 +22,21 @@
 
 ### 这两块逻辑刻意挂在哪
 
-挂在**预设里**（`preset/chat/agent.cordis.yml` 末尾的两条 `insert`），不是挂在包自己的
-`cordis.patch.yml` 里。
+挂在**预设里**（`preset/chat/agent.cordis.yml` 与 `preset/cyrene-work/agent.cordis.yml`
+末尾的 `insert`），不是挂在包自己的 `cordis.patch.yml` 里。
 
 因为 `systemPrompt.variable()` 与 `tools.register()` 都注册进**调用作用域**，
-挂在预设里，这两个变量和两个工具就只属于该预设的会话：工作模式看不到它们，
-也拿不到 `remember` / `forget`。若挂在 bundle 里，则会污染每一个模式。
+挂在哪个预设里，就只属于那个预设的会话 —— 内置的**标准模式**看不到它们，
+也拿不到 `remember` / `forget`。若挂在 bundle 里，则会污染每一个模式（含标准模式）。
+
+> ⚠️ 但**两个模式挂的东西并不完全相同**，别把"挂预设里"当成"两个模式都有"：
+>
+> | | `chat` | `cyrene-work` |
+> |---|---|---|
+> | `memory.js`（`{{cyrene_memory}}` + `remember` / `forget`） | ✅ | ✅ 共用同一份记忆文件 |
+> | `worldbook/`（世界书注入） | ✅ | ✅ |
+> | `nickname.js`（`{{user_nickname}}`） | ✅ | ❌ 不挂 —— work 那组人设正文没引用这个变量 |
+
 
 ### 为什么这里一处外部依赖都没有
 

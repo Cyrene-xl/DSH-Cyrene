@@ -1,8 +1,10 @@
 /**
  * worldbook/index.mjs —— 昔涟世界书的注入层（主机插件）。
  *
- * 由 chat 预设挂载（不是包自己的 cordis.patch.yml），所以只作用于该预设的会话：
- * 工作模式看不到，也不需要往 profile 的 package.json / pnpm-lock.yaml 加依赖。
+ * 由 `chat` 与 `cyrene-work` 两个预设**分别挂载**（挂的是本包在 profile 里的那个
+ * 实例，不是包自己的 cordis.patch.yml），所以只作用于挂了它的那些预设的会话：
+ * 内置的**标准模式**看不到。也因此不需要往 profile 的 package.json /
+ * pnpm-lock.yaml 加依赖。
  *
  * ## 两条通道，按「需不需要本轮用户消息」拆开
  *
