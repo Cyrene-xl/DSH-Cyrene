@@ -102,9 +102,23 @@ foreach ($id in $PresetIds) {
 if ($Failed -ne 0) { exit 1 }
 
 Write-Host ""
-Write-Host "安装完成。在新建对话页的模式滑块里选："
-Write-Host "  「纯文本对话模式」—— 只带联网搜索与表情包，不做编码 / Shell。"
-Write-Host "  「昔涟工作模式」  —— 昔涟人设 + 全套文件 / Shell / 计划 / 子代理工具。"
+Write-Host "安装完成。在新建对话页的模式滑块里可以选："
+# 从各预设自己的 preset.yml 读名字与描述 —— 不要在这里写死模式名，
+# 否则以后新增预设会被静默安装、却不出现在这段提示里。
+foreach ($id in $PresetIds) {
+    $metaPath = Join-Path (Join-Path $SrcRoot $id) 'preset.yml'
+    $name = $id
+    $desc = ''
+    if (Test-Path $metaPath) {
+        $meta = Get-Content -Path $metaPath -Encoding UTF8
+        $nameLine = $meta | Where-Object { $_ -match '^name:\s*(.+)$' } | Select-Object -First 1
+        if ($nameLine -and $nameLine -match '^name:\s*(.+)$') { $name = $Matches[1].Trim() }
+        $descLine = $meta | Where-Object { $_ -match '^description:\s*(.+)$' } | Select-Object -First 1
+        if ($descLine -and $descLine -match '^description:\s*(.+)$') { $desc = $Matches[1].Trim() }
+    }
+    Write-Host "  「$name」"
+    if ($desc -ne '') { Write-Host "      $desc" }
+}
 Write-Host ""
-Write-Host "提示：两者都用 complete: true 整份替换系统提示词，共享同一份长期记忆"
+Write-Host "提示：这些预设都用 complete: true 整份替换系统提示词，共享同一份长期记忆"
 Write-Host "      （$DshHome\cyrene-memory.md）。"

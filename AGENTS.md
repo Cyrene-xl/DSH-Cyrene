@@ -56,12 +56,18 @@ npm run harness:check # 全部运行时代码的语法检查
 
 | 对象 | 状态 | 怎么验的 |
 | --- | --- | --- |
-| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（59 条）+ `npm run harness:check`（全量语法检查） |
-| `preset/chat/`、`preset/cyrene-work/` 的 YAML | ✅ 已验 | 解析 + 结构断言（条目数、`complete: true`、`persona.prefix` 长度） |
+| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（63 条）+ `npm run harness:check`（全量语法检查） |
+| `preset/chat/`、`preset/cyrene-work/` 的 YAML | ✅ 已验 | 解析 + 结构断言（`tests/preset.test.mjs`：条目数、`complete: true`、两模式挂载差异） |
+| `preset/cyrene-work/` 的**工具行与内置 standard 的同步性** | ✅ 已验（**装了 DSH 才跑**） | `tests/preset.test.mjs` 的漂移护栏：断言比 standard 少 0 行、多出的只允许 `cyrene-memory` / `dsh-cyrene-worldbook`。CI 上没有 DSH，该文件整体跳过 |
 | `scripts/install.sh` | ✅ 已验 | 用**临时 `DSH_HOME`** 实跑：安装 → 幂等复跑报"已是最新" → `--uninstall` |
 | `scripts/install.mjs` | ✅ 已验 | 同上（安装 / 幂等 / 卸载三条都跑过） |
 | `scripts/install.ps1` | ⚠️ **未验** | 开发环境没有 PowerShell，**只做了人工审查，没跑过一次** |
 | `scripts/install.bat` | ⚠️ **未验** | 同上（它只是转调 `.ps1`） |
+
+> **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
+> standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
+> 就是为此设的：**它只在装了 DSH 的机器上跑**，所以别把它当成 CI 覆盖到了。
+
 
 **两条 Windows 路径是本仓库唯一没被实跑过的代码。** 改动它们时格外小心；有条件的话
 在真实 Windows 上跑一遍再改"已验"。不要在 release notes 里把它们写成已测试。

@@ -129,11 +129,26 @@ async function main() {
   if (failed !== 0) process.exit(1);
 
   console.log('');
-  console.log('安装完成。在新建对话页的模式滑块里选：');
-  console.log('  「纯文本对话模式」—— 只带联网搜索与表情包，不做编码 / Shell。');
-  console.log('  「昔涟工作模式」  —— 昔涟人设 + 全套文件 / Shell / 计划 / 子代理工具。');
+  console.log('安装完成。在新建对话页的模式滑块里可以选：');
+  // 从各预设自己的 preset.yml 读名字与描述 —— 不要在这里写死模式名，
+  // 否则以后新增预设会被静默安装、却不出现在这段提示里。
+  for (const id of ids) {
+    let name = id;
+    let desc = '';
+    try {
+      const meta = await readFile(join(srcRoot, id, 'preset.yml'), 'utf8');
+      const grab = (key) => {
+        const m = meta.match(new RegExp(`^${key}:[ \\t]*(.*)$`, 'm'));
+        return m ? m[1].trim() : '';
+      };
+      name = grab('name') || id;
+      desc = grab('description');
+    } catch { /* 读不到就退回 id */ }
+    console.log(`  「${name}」`);
+    if (desc !== '') console.log(`      ${desc}`);
+  }
   console.log('');
-  console.log('提示：两者都用 complete: true 整份替换系统提示词，共享同一份长期记忆');
+  console.log('提示：这些预设都用 complete: true 整份替换系统提示词，共享同一份长期记忆');
   console.log(`      （${join(dshHome, 'cyrene-memory.md')}）。`);
 }
 

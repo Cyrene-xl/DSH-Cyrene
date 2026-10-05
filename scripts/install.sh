@@ -104,9 +104,17 @@ if [ "$FAILED" -ne 0 ]; then
 fi
 
 echo ""
-echo "安装完成。在新建对话页的模式滑块里选："
-echo "  「纯文本对话模式」—— 只带联网搜索与表情包，不做编码 / Shell。"
-echo "  「昔涟工作模式」  —— 昔涟人设 + 全套文件 / Shell / 计划 / 子代理工具。"
+echo "安装完成。在新建对话页的模式滑块里可以选："
+# 从各预设自己的 preset.yml 读名字与描述 —— 不要在这里写死模式名，
+# 否则以后新增预设会被静默安装、却不出现在这段提示里。
+for id in "${PRESET_IDS[@]}"; do
+  meta="$SRC_ROOT/$id/preset.yml"
+  name="$(sed -n 's/^name:[[:space:]]*//p' "$meta" 2>/dev/null | head -1)"
+  desc="$(sed -n 's/^description:[[:space:]]*//p' "$meta" 2>/dev/null | head -1)"
+  [ -n "$name" ] || name="$id"
+  printf '  「%s」\n' "$name"
+  [ -n "$desc" ] && printf '      %s\n' "$desc"
+done
 echo ""
-echo "提示：两者都用 complete: true 整份替换系统提示词，共享同一份长期记忆"
+echo "提示：这些预设都用 complete: true 整份替换系统提示词，共享同一份长期记忆"
 echo "      （<DSH_HOME>/cyrene-memory.md）。"
