@@ -50,6 +50,25 @@ npm run harness:check # 全部运行时代码的语法检查
   只有 `worldbook/index.mjs` 与 DSH 交互。
 - 角色 IP 归 HoYoverse / 米哈游所有，**含角色 IP 的衍生物禁止商业使用**。
 
+## 验证状态（哪些验过、哪些没验过）
+
+写清楚是为了防止后人把"没验过"当成"验过"。
+
+| 对象 | 状态 | 怎么验的 |
+| --- | --- | --- |
+| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（59 条）+ `npm run harness:check`（全量语法检查） |
+| `preset/chat/`、`preset/cyrene-work/` 的 YAML | ✅ 已验 | 解析 + 结构断言（条目数、`complete: true`、`persona.prefix` 长度） |
+| `scripts/install.sh` | ✅ 已验 | 用**临时 `DSH_HOME`** 实跑：安装 → 幂等复跑报"已是最新" → `--uninstall` |
+| `scripts/install.mjs` | ✅ 已验 | 同上（安装 / 幂等 / 卸载三条都跑过） |
+| `scripts/install.ps1` | ⚠️ **未验** | 开发环境没有 PowerShell，**只做了人工审查，没跑过一次** |
+| `scripts/install.bat` | ⚠️ **未验** | 同上（它只是转调 `.ps1`） |
+
+**两条 Windows 路径是本仓库唯一没被实跑过的代码。** 改动它们时格外小心；有条件的话
+在真实 Windows 上跑一遍再改"已验"。不要在 release notes 里把它们写成已测试。
+
+> 验证安装脚本时**务必用临时 `DSH_HOME`**（`DSH_HOME=/tmp/xxx scripts/install.sh`），
+> 否则会覆盖真实 `~/.dsh/.agent-presets/` 下你正在用的预设。
+
 ## 提交前
 
 - `npm test` 全绿、`npm run harness:check` 通过。

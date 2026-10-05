@@ -111,6 +111,12 @@ scripts\install.bat
 node scripts/install.mjs
 ```
 
+> ⚠️ **Windows 的两条路径（`install.ps1` / `install.bat`）尚未在真实 Windows 上实跑过** ——
+> 开发环境没有 PowerShell，它们只做过人工审查。`install.sh` 与 `install.mjs` 是用临时
+> `DSH_HOME` 实测过的（安装 / 幂等 / 卸载）。
+> Windows 用户若跑不通，**用 `node scripts/install.mjs` 即可**（同样是跨平台、无 shell 依赖）。
+> 详见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
+
 脚本会把 `preset/` 下的**每个子目录**装成对应的预设：
 `preset/chat/` → `~/.dsh/.agent-presets/chat/`，
 `preset/cyrene-work/` → `~/.dsh/.agent-presets/cyrene-work/`。
