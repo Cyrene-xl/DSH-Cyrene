@@ -471,6 +471,24 @@ test('注入层：端到端 —— 本轮消息里有触发词，命中块被追
   assert.ok(text.includes('帝皇权杖'), '命中块应含该条正文');
 });
 
+test('注入层：追加的消息必须带非空 id —— 否则会话历史会加载失败', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, async () => {
+  // 这条守护来自一次真实事故：DSH 自己的消息都走 createMessage()，它内部赋
+  // `id: randomUUID()`；而注入层是**手写描述符**，绕过了那个工厂。
+  // 缺 id 的 user/message 会被原样写进会话事件，之后 dsh-session 的
+  // assertMessageEventShape 直接拒绝整份历史：
+  //   session event at seq N lacks an identified message
+  // 表现是那个会话再也打不开，而且完全看不出跟本插件有关。
+  // 实测本机 21 个会话里有 3 个因此损坏，每条只差这一个字段。
+  const { ctx, listeners } = mockCtx();
+  applyWorldbook(ctx);
+  const decision = await runPreStep(listeners, [userMsg('你还记得翁法罗斯之心吗')], fakeSession([]));
+  assert.equal(decision.messages.length, 2, '前提：这条消息确实触发了注入');
+  const injected = decision.messages[1];
+  assert.equal(typeof injected.id, 'string', 'id 必须是字符串');
+  assert.ok(injected.id.length > 0, 'id 不能是空串');
+  assert.equal(decision.messages[0].id === injected.id, false, 'id 不能与已有消息重复');
+});
+
 test('注入层：无关闲聊不追加任何消息', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, async () => {
   const { ctx, listeners } = mockCtx();
   applyWorldbook(ctx);

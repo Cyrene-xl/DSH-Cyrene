@@ -44,6 +44,7 @@
  * 自我回声。
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -324,7 +325,20 @@ export function apply(ctx) {
       // 手写描述符，不 import @deepseek-ai/dsh-llm / dsh-tools ——
       // 那类包在 link 安装下解析不到（ERR_MODULE_NOT_FOUND），
       // 而 npm 上的版本（0.0.1-rc.1）又跟运行时对不上。
+      //
+      // ⚠️ `id` **必须自己生成，不能省**。
+      //
+      // DSH 自己的消息都走 `createMessage()`，它内部会赋
+      // `id: randomUUID()`；而这里是手写的描述符，绕过了那个工厂。
+      // 没有 id 的 user/message 会被原样写进会话事件，之后**历史加载直接失败**：
+      //
+      //   session event at seq N lacks an identified message
+      //   （dsh-session 的 assertMessageEventShape 要求消息类事件的 id 是非空字符串）
+      //
+      // 表现是那个会话再也打不开 —— 排查时只看到"历史加载失败"，看不出跟本插件有关。
+      // 这个坑真踩过：3 个会话因此损坏，每条只差这一个字段。
       const marker = {
+        id: randomUUID(),
         role: 'user',
         content: [{ type: 'text', text }],
         source: { kind: 'plugin', plugin: 'dsh-cyrene/worldbook', form: 'snapshot' }

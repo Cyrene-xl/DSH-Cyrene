@@ -124,3 +124,38 @@ MODULE_NOT_FOUND: Cannot find module '…/tests'
 - 世界书那部分是**纯函数 + 薄注入层**：`worldbook/{parse,match,assemble}.mjs` 不碰任何
   DSH API，可以直接单测；只有 `worldbook/index.mjs` 与 DSH 交互。改匹配逻辑改前者，
   改注入时机改后者。
+
+## 六、往会话里塞消息，**必须自己生成 `id`**
+
+这条单独列出来，因为它是本项目**唯一一次造成真实数据损坏**的坑：3 个会话因此
+再也打不开，而报错信息完全看不出跟本插件有关。
+
+DSH 自己的消息都走 `dsh-llm` 的 `createMessage()`，它内部会赋：
+
+```js
+function createMessage(input) {
+  return freezeMessage({ ...input, id: brandString(randomUUID()) });
+}
+```
+
+而 `worldbook/index.mjs` 的命中块是**手写描述符**（因为要避开 `link:` 安装下解析不到的
+`@deepseek-ai/dsh-llm`），绕过了那个工厂。少写一个 `id`，后果是：
+
+1. 这条 `user/message` **带着缺 id 的原样**写进会话事件；
+2. 之后任何一次历史加载都会在 `dsh-session` 的 `assertMessageEventShape` 上被拒：
+
+   ```
+   session event at seq N lacks an identified message
+   ```
+
+   该校验要求消息类事件（`system/message` / `user/message` / `assistant/message` /
+   `tool/result`）的 `id` 是**非空字符串**；`user/message` 的 data 本身就是消息，
+   其余三种取 `data.message`。
+3. 表现是**那个会话永久打不开**（"历史加载失败"），而错误里只有 seq 号，
+   没有任何线索指向注入方。
+
+**所以：手写消息描述符时，`id: randomUUID()`（`node:crypto`）不是可选项。**
+`tests/worldbook.test.mjs` 里有一条专门守着它。
+
+> 已损坏的会话可以离线修：逐帧解压，给缺 id 的那条补一个 `randomUUID()`，
+> 只重写含它的那一帧，其余帧原样保留。修完要逐条比对，确认除 `id` 外**零差异**。
