@@ -278,11 +278,20 @@ dsh plugin --profile <你的 profile> add dsh-meme
 
 如果你想要"桌面伴侣"那种观感，可以自行搭配以下插件（均为 MIT，各自独立维护）：
 
-| 插件 | 作用 | 上游 |
-|---|---|---|
-| `dsh-dream-skin` | 皮肤 / 壁纸 / 面板透明度 | [RevolutionLA/dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) |
-| `dsh-ui-boost` | 主色调着色、Dock 等界面微调 | [DoshinJiu/dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) |
-| `dsh-anime-theme` | 随机二次元壁纸背景 | [zxr2115-1/dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) |
+| 插件 | 作用 | 必要性 | 上游 |
+|---|---|---|---|
+| `dsh-dream-skin` | 皮肤 / 壁纸 / 面板透明度 | 常用 | [RevolutionLA/dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) |
+| `dsh-ui-boost` | 主色调着色、Dock 等界面微调 | 可选 | [DoshinJiu/dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) |
+| `dsh-anime-theme` | 随机二次元壁纸背景 | **非必要** | [zxr2115-1/dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) |
+
+> **`dsh-anime-theme` 是非必要的纯外观插件。** 它只做随机壁纸，能力与
+> `dsh-dream-skin` 的壁纸功能**重叠**；本插件的主职（两套预设的加载、人设、世界书、
+> 记忆）与它毫无关系，**不装没有任何功能缺失**。
+>
+> 它还有个特点值得知道：**关闭时零残留** —— 客户端代码在 `enabled: false` 时返回
+> **空样式表**，一条规则都不写。此时它在界面上唯一的痕迹是右上角那个
+> "换壁纸 / 开-关"小控件；卸载它只会让那个控件一起消失，
+> **不会影响其它插件给你的背景与皮肤**。
 
 安装方式以各自仓库的说明为准，通常是：
 

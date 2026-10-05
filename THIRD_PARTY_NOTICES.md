@@ -145,12 +145,15 @@ Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观�
 
 以下插件**不在本仓库内**，请各自从原始仓库安装。本仓库不捆绑、不再分发它们：
 
-| 插件 | 作者 | 授权 |
-|---|---|---|
-| [dsh-meme](https://github.com/yyh-001/dsh-meme) | yyh-001 | MIT |
-| [dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) | RevolutionLA | MIT |
-| [dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) | DoshinJiu | MIT |
-| [dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) | zxr2115-1 | MIT |
+| 插件 | 作者 | 授权 | 必要性 |
+|---|---|---|---|
+| [dsh-meme](https://github.com/yyh-001/dsh-meme) | yyh-001 | MIT | 可选（只影响表情包规则是否生效） |
+| [dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) | RevolutionLA | MIT | 常用 |
+| [dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) | DoshinJiu | MIT | 可选 |
+| [dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) | zxr2115-1 | MIT | **非必要**（纯外观，与 dsh-dream-skin 壁纸功能重叠） |
+
+上表"必要性"一列描述的只是**本仓库对它们的依赖程度**：本仓库的两套预设、人设、
+世界书与记忆**一个都不依赖**，全部零依赖运行；列在这里仅因为使用者常把它们搭配使用。
 
 表情图库与壁纸图片的版权归各自作者所有。
 
