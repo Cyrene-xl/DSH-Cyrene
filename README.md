@@ -147,27 +147,39 @@ node scripts/install.mjs
 > 所以模式要**在新建对话时就选好**；已经聊过的会话改不了，只能再开一个。
 > 新建对话页的滑块只在空白会话出现，正是因为这个。
 
-## 这个模式下有什么、没有什么
+## 两个模式各有什么、没有什么
 
-| | 状态 |
-|---|---|
-| 联网搜索 | ✅ 通过 `@deepseek-ai/dsh-tool-web`（`fetch: true`） |
-| 长期记忆 | ✅ 由本包的 `memory.js` 提供 `remember` / `forget` 工具 |
-| 可配置称呼 | ✅ 由本包的 `nickname.js` 提供 `{{user_nickname}}` |
-| 世界书 | ✅ 由本包的 `worldbook/` 提供，**数据随包发运**（61 条） |
-| 表情包 | ⚠️ 需要另装 `dsh-meme` 插件才生效（见下） |
-| 文件读写 / Shell / 设备控制 | ❌ **不提供**（对话模式只挂 7 个工具，实测无 `bash` / `read`） |
-| 运行时上下文快照 | ✅ 开启（`includeRuntimeContext: true`，世界书依赖它） |
+两套预设的差别**不只是工具多少**，人设正文也取自上游不同的模式组（见
+[`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)）。逐项对照：
 
-**这就是取舍**：人格纯度与干活能力不能兼得。本插件选择前者，并且做成**独立预设**——
-你原有的工作模式不受影响，需要干活时切回去就行。
+| 能力 | 纯文本对话模式 | 昔涟工作模式 |
+|---|---|---|
+| 人设正文 | `chat` 组（含 `soul.md`） | `work` 组（**轻量版**，上游不含 `soul.md`） |
+| 联网搜索 | ✅ `@deepseek-ai/dsh-tool-web`（`fetch: true`） | ✅ 同上 |
+| 长期记忆 | ✅ 本包 `memory.js`：`remember` / `forget` | ✅ 同上，**与对话模式共用同一份文件** |
+| 世界书 | ✅ 本包 `worldbook/`，**数据随包发运**（61 条） | ✅ 同上 |
+| 运行时上下文快照 | ✅ `includeRuntimeContext: true`（世界书依赖它） | ✅ 同上 |
+| 可配置称呼 | ✅ 本包 `nickname.js` 提供 `{{user_nickname}}` | ❌ **未挂** —— 人设正文也没引用它 |
+| 文件读写 / Shell / 文件检索 | ❌ 不提供 | ✅ `bash` / `pwsh` / `tool-fs` / `tool-fs-search` |
+| 计划 / 目标 / Skills | ❌ 不提供 | ✅ `plan-mode` / `tool-goal` / `tool-skill` |
+| 子代理 / workflow / ralph | ❌ 不提供 | ✅ `tool-subagent`（含 fork）/ `tool-workflow` / `tool-ralph` |
+| 表情包 | ⚠️ 需另装 `dsh-meme` 才生效（见下） | ⚠️ 同上 |
 
-上面那些 ✅ 是本包的宿主逻辑，它们**挂在预设里**，所以只在这个模式生效，
-工作模式看不到这些变量和工具。详见 [`docs/host-side.md`](./docs/host-side.md)。
+**这就是两套预设的意义**：以前想用角色人设就得放弃干活能力，于是只能"要干活时切回
+原来的工作模式"。现在**「昔涟工作模式」两者兼得** —— 角色人设整份替换系统提示词，
+同时挂着完整工具，并且和对话模式**共享同一份长期记忆**，两边记的事能接上。
+
+代价要说清楚：工作模式用的是上游的**轻量人设**（不含 `soul.md`、台词集也是精简版），
+所以语气会比对话模式淡一些。这是上游自己的设计取舍，本仓库照搬，没有代为更改；
+想调，见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) 第 1 节。
+
+> 两个模式都挂了本包的 `memory.js` 与 `worldbook/`，且都在**预设里**挂载，所以
+> 只在各自模式内生效。对话模式额外挂了 `nickname.js`（工作模式的人设不需要它）。
+> 详见 [`docs/host-side.md`](./docs/host-side.md)。
 
 ## 长期记忆
 
-这个模式能记住关于你的事，跨会话保留。
+**两个模式共用同一份记忆**，所以你在哪边说的「记住……」另一边也看得到。
 
 - **存在哪**：`~/.dsh/cyrene-memory.md`，纯 markdown，一行一条 `- 内容`，
   也可以自由写小标题和说明。
