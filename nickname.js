@@ -1,5 +1,5 @@
 /**
- * dsh-cyrene-chat / nickname.js —— 「纯文本对话模式」里的称呼变量 `{{user_nickname}}`。
+ * dsh-cyrene / nickname.js —— 「纯文本对话模式」里的称呼变量 `{{user_nickname}}`。
  *
  * 预设正文会写「用户的昵称是「{{user_nickname}}」……」。DSH 的 dsh-system-prompt
  * 只注册 provider / model / cwd 三个变量，引用未注册的变量会在**装配期直接抛错**

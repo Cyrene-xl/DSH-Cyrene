@@ -1,6 +1,6 @@
 {
-  "name": "dsh-cyrene-chat",
-  "version": "0.2.3",
+  "name": "dsh-cyrene",
+  "version": "0.3.0",
   "description": "DeepSeek Harness 插件：增加「纯文本对话模式」agent 预设——整份替换系统提示词进行纯角色对话，并附带随包世界书（61 条设定，按触发词自动注入）、长期记忆（remember / forget）与可配置称呼；联网搜索保留，表情包需另装 dsh-meme。随包人设文本与世界书数据整理自开源项目 Cyrene-Agent（MIT）。",
   "type": "module",
   "main": "./index.js",
@@ -8,12 +8,12 @@
   "author": "Cyrene-xl",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Cyrene-xl/dsh-cyrene-chat.git"
+    "url": "git+https://github.com/Cyrene-xl/dsh-cyrene.git"
   },
   "bugs": {
-    "url": "https://github.com/Cyrene-xl/dsh-cyrene-chat/issues"
+    "url": "https://github.com/Cyrene-xl/dsh-cyrene/issues"
   },
-  "homepage": "https://github.com/Cyrene-xl/dsh-cyrene-chat#readme",
+  "homepage": "https://github.com/Cyrene-xl/dsh-cyrene#readme",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
@@ -49,11 +49,11 @@
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "dsh": {
-    "id": "dsh-cyrene-chat",
+    "id": "dsh-cyrene",
     "name": "纯文本对话模式",
     "displayName": "纯文本对话模式",
     "version": "0.2.3",
-    "repo": "Cyrene-xl/dsh-cyrene-chat",
+    "repo": "Cyrene-xl/dsh-cyrene",
     "permissions": "不在运行时申请任何权限",
     "bundle": {
       "patch": "./cordis.patch.yml"

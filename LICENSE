@@ -26,7 +26,8 @@ SOFTWARE.
 
 - 本 MIT 授权覆盖本仓库的**代码**（`index.js`、`cordis.patch.yml`、`scripts/`、
   `package.json` 等），为本项目作者原创。
-- `preset/agent.cordis.yml` 内的**人设文本**来自开源项目 Cyrene-Agent
+- `preset/chat/agent.cordis.yml` 与 `preset/cyrene-work/agent.cordis.yml` 内的
+  **人设文本**来自开源项目 Cyrene-Agent
   （MIT License, Copyright (c) 2026 Playa），其许可证副本见
   `LICENSES/Cyrene-Agent-LICENSE.txt`。
 - **角色 IP**（昔涟 / Cyrene 及《崩坏：星穹铁道》相关角色、世界观、名称与美术）

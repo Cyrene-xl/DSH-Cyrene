@@ -1,7 +1,7 @@
 /**
- * dsh-cyrene-chat / memory.js —— 「纯文本对话模式」的长期记忆。
+ * dsh-cyrene / memory.js —— 「纯文本对话模式」的长期记忆。
  *
- * 这个文件**由预设挂载**（预设里写 `dsh-cyrene-chat/memory`），不由本包的
+ * 这个文件**由预设挂载**（预设里写 `dsh-cyrene/memory`），不由本包的
  * cordis.patch.yml 挂载。差别很实际：挂在预设里，它的提示词变量和工具就只落在
  * 会话自己的作用域，工作模式完全看不到，也拿不到这两个工具。
  *

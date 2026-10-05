@@ -1,4 +1,4 @@
-# dsh-cyrene-chat — 宿主半体，与两个会话级插件
+# dsh-cyrene — 宿主半体，与两个会话级插件
 
 ## 核心还是那份预设
 
@@ -22,7 +22,7 @@
 
 ### 这两块逻辑刻意挂在哪
 
-挂在**预设里**（`preset/agent.cordis.yml` 末尾的两条 `insert`），不是挂在包自己的
+挂在**预设里**（`preset/chat/agent.cordis.yml` 末尾的两条 `insert`），不是挂在包自己的
 `cordis.patch.yml` 里。
 
 因为 `systemPrompt.variable()` 与 `tools.register()` 都注册进**调用作用域**，
@@ -60,6 +60,6 @@ DSH **没有公开的"安装预设"API**（`dsh-agent-presets` 只按
 所以预设由 `scripts/install.*` 拷贝，而不是由本插件在运行时写入 ——
 插件启动时去写 DSH 主目录属于越界行为，本项目不做。
 
-> 注意：随包预设里的插件引用写的是 `dsh-cyrene-chat/memory` 这样的**包名**，
+> 注意：随包预设里的插件引用写的是 `dsh-cyrene/memory` 这样的**包名**，
 > 这要求本包已经装进目标 profile（正常流程都是如此）。如果只手动拷了预设、
 > 没装包，该模式下每一轮对话都会因变量未注册而报错。

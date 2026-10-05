@@ -3,7 +3,7 @@
 ## 一句话概括
 
 - **本仓库的代码**（`index.js`、`worldbook/`、`cordis.patch.yml`、`scripts/`、`package.json` 等）：MIT，本项目作者原创。
-- **`preset/agent.cordis.yml` 内的人设文本** 与 **`worldbook/data/` 内的世界书数据**：来自开源项目 **Cyrene-Agent**，MIT，`Copyright (c) 2026 Playa`；**已取得原作者同意**（2026-10-03，见第 1 节「授权确认」与「世界书数据」）。
+- **两套预设（`preset/chat/`、`preset/cyrene-work/`）的 `agent.cordis.yml` 内的人设文本** 与 **`worldbook/data/` 内的世界书数据**：来自开源项目 **Cyrene-Agent**，MIT，`Copyright (c) 2026 Playa`；**已取得原作者同意**（2026-10-03，见第 1 节「授权确认」与「世界书数据」）。
 - **角色 IP**（昔涟 / Cyrene 及《崩坏：星穹铁道》相关内容）：归 **HoYoverse / 米哈游** 所有。
 - **禁止商业使用**：含角色 IP 的衍生物不得用于售卖、付费社群、广告变现、打包销售等。
 
@@ -11,7 +11,25 @@
 
 ## 1. 人设文本与世界书数据的来源与授权
 
-`preset/agent.cordis.yml` 中的人设与语气内容整理自：
+本仓库随包发运**两套预设**，各自取用上游**不同模式**的提示词组。上游把它们按模式拆开
+（`src/main/orchestrator/mode-prompt-profile.ts` 的 `MODE_FILES`），本仓库照搬其组合与顺序，
+**两套的正文都一字未改**：
+
+| 本仓库 | 取自上游 |
+|---|---|
+| `preset/chat/agent.cordis.yml` | `chat_system.md` + `chat_identity.md` + `soul.md` + `canon_quotes.md` |
+| `preset/cyrene-work/agent.cordis.yml` | `work_system.md` + `work_identity.md` + `work_remark.md` + `canon_quotes_lite.md`，另接 `tool_usage.md` |
+
+> `tool_usage.md` 在上游不属于人设正文，而是「工具系统内容」，且**只在非 chat 模式**拼入
+> （`prompt-builder.ts`：`if (options.conversationMode !== "chat")`）。本仓库把它接在工作模式
+> 人设之后 —— 顺序等价，正文未改。
+>
+> ⚠️ 上游在 work 模式里**刻意不用 `soul.md`**，改用 `canon_quotes_lite.md`。
+> 这是上游自己的取舍，本仓库不代为更改。
+
+### 对话模式预设（`preset/chat/`）
+
+内容整理自：
 
 - 项目：**Cyrene-Agent** — <https://github.com/Playa-Cyrene/Cyrene-Agent>
 - 原作者：Playa
@@ -120,7 +138,7 @@ Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观�
 
 - ❌ Live2D 模型文件（`.moc3` / `.motion3.json` / `.physics3.json` / 纹理等）
 - ❌ 角色立绘、美术资源、音频、语音
-- ❌ 游戏内文本的成段收录（`preset/agent.cordis.yml` 中引用的原作台词摘录，
+- ❌ 游戏内文本的成段收录（预设 `agent.cordis.yml` 中引用的原作台词摘录，
   其内容版权归 HoYoverse / 米哈游所有，仅作语气参考用途）
 
 ## 5. 可选依赖（第三方插件）
@@ -138,7 +156,7 @@ Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观�
 
 ## 6. 使用者的责任
 
-1. 若你**不再需要**人设文本，可以直接删除 `preset/agent.cordis.yml` 中的相关内容，
+1. 若你**不再需要**人设文本，可以直接删除预设 `agent.cordis.yml` 中的相关内容，
    或改用空白模板——本插件的装配机制不依赖具体人设。
 2. 若你在其基础上**继续创作**并公开分发，请保留本文件与许可证副本，
    并同样声明角色 IP 归属与禁止商业使用。

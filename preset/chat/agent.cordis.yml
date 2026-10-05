@@ -31,7 +31,7 @@
 #   内容稳定、只落库一次。
 #
 # 模板变量：本文件用了 {{user_nickname}} 和 {{cyrene_memory}}，两者都由本包提供、
-#   由本文件末尾挂载的插件（dsh-cyrene-chat/nickname 与 /memory）注册。
+#   由本文件末尾挂载的插件（dsh-cyrene/nickname 与 /memory）注册。
 #   世界书不用模板变量，它走 context()，所以不需要在正文里占位。
 #
 # ⚠️ 不要手写没注册过的 {{...}}，也不要照搬上游 prompts/ 的模板变量：DSH 的
@@ -907,12 +907,12 @@
 # 称呼变量 {{user_nickname}}。默认「伙伴」；若本机已有昵称插件写了它惯用的配置文件，
 # 就沿用那个值（同名 scoped 注册会遮蔽全局注册，不会重名冲突）。
 - id: cyrene-nickname
-  name: 'dsh-cyrene-chat/nickname'
+  name: 'dsh-cyrene/nickname'
 
 # 长期记忆 {{cyrene_memory}} + remember / forget 工具。
 # 记忆本体是 <DSH_HOME>/cyrene-memory.md，纯文本，可手改、可删。
 - id: cyrene-memory
-  name: 'dsh-cyrene-chat/memory'
+  name: 'dsh-cyrene/memory'
 
 # 世界书：按 Cyrene-Agent 的条目格式，命中即往上下文尾部注入一段背景。
 #
@@ -927,4 +927,4 @@
 # 相对模块解析，装到哪都成立；要换成自己的世界书，在 <DSH_HOME>/cyrene-worldbook.json
 # 里用 dir 覆盖，或在该文件里写 enabled:false 关掉。
 - id: dsh-cyrene-worldbook
-  name: 'dsh-cyrene-chat/worldbook'
+  name: 'dsh-cyrene/worldbook'

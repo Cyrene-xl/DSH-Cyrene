@@ -1,5 +1,5 @@
 /**
- * dsh-cyrene-chat 宿主半体
+ * dsh-cyrene 宿主半体
  *
  * 本文件刻意不做任何运行时改动：它的价值全在 preset/ 目录里的 agent 预设。
  * 本文件的作用只是给 profile bundle 提供一个可加载的包锚点。
@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /** 插件 id（与 package.json 的 dsh.id、cordis.patch.yml 的条目 id 保持一致）。 */
-export const name = 'dsh-cyrene-chat';
+export const name = 'dsh-cyrene';
 
 /**
  * 版本号：**从 package.json 读**，不再手写一份。
@@ -48,7 +48,7 @@ export const inject = [];
  */
 export function apply(ctx) {
   ctx?.logger?.info?.(
-    '[dsh-cyrene-chat] 已加载。若尚未安装预设，请运行 scripts/install.sh（或 install.ps1 / install.bat）：' +
+    '[dsh-cyrene] 已加载。若尚未安装预设，请运行 scripts/install.sh（或 install.ps1 / install.bat）：' +
       'DSH 没有公开的预设安装 API，预设必须落到 ~/.dsh/.agent-presets/chat/ 才会被发现。'
   );
 }

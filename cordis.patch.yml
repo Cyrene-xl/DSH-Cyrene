@@ -1,6 +1,6 @@
-# dsh-cyrene-chat bundle patch
+# dsh-cyrene bundle patch
 #
-# 只做一件事：把宿主半体挂进 loader，让 `dsh plugin --profile <name> add dsh-cyrene-chat`
+# 只做一件事：把宿主半体挂进 loader，让 `dsh plugin --profile <name> add dsh-cyrene`
 # 之后 DSH 能加载到这个包。
 #
 # 刻意保持"纯 insert(id/name)"形式 —— 这是可热挂载的，不需要重启即可生效。
@@ -10,5 +10,5 @@
 # 预设不在这里注册 —— DSH 没有公开的预设安装 API，预设由 scripts/install.*
 # 拷贝到 ~/.dsh/.agent-presets/chat/，由 DSH 自身按目录扫描发现。
 - insert:
-    - id: dsh-cyrene-chat
-      name: 'dsh-cyrene-chat'
+    - id: dsh-cyrene
+      name: 'dsh-cyrene'

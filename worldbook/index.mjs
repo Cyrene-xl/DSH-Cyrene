@@ -325,7 +325,7 @@ export function apply(ctx) {
       const marker = {
         role: 'user',
         content: [{ type: 'text', text }],
-        source: { kind: 'plugin', plugin: 'dsh-cyrene-chat/worldbook', form: 'snapshot' }
+        source: { kind: 'plugin', plugin: 'dsh-cyrene/worldbook', form: 'snapshot' }
       };
       return { kind: 'enter', messages: [...decision.messages, marker] };
     },

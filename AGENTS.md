@@ -36,7 +36,7 @@ npm run harness:check # 全部运行时代码的语法检查
 
 | 改什么 | 怎么生效 |
 | --- | --- |
-| 预设 YAML `preset/agent.cordis.yml` | **下次新建会话**，不用重启（但已加入的会话保留旧组装） |
+| 预设 YAML `preset/<id>/agent.cordis.yml` | **下次新建会话**，不用重启（但已加入的会话保留旧组装） |
 | 插件源码 `.js` / `.mjs` | **必须重启** —— loader 用裸 `import()`，没有缓存击穿 |
 
 ## 来源与边界

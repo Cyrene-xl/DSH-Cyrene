@@ -2,11 +2,16 @@
 
 ---
 
-# dsh-cyrene-chat
+# dsh-cyrene
 
-为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）提供一套
-**「纯文本对话模式」agent 预设**：整份替换系统提示词，让模型纯以角色人格对话，
-只保留联网搜索与表情包，**不挂文件 / Shell / 设备工具**。
+为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）提供**两套角色 agent 预设**：
+
+| 预设 | 显示名 | 能力 |
+|---|---|---|
+| `preset/chat/` | **纯文本对话模式** | 整份替换系统提示词，纯以角色人格对话；只保留联网搜索与表情包，**不挂文件 / Shell / 设备工具** |
+| `preset/cyrene-work/` | **昔涟工作模式** | 同样用角色人设整份替换系统提示词，但**带全套工具**（文件 / Shell / 计划 / 目标 / 子代理 / workflow）；干活时也保持她的身份与说话方式 |
+
+两者共享同一份长期记忆（`<DSH_HOME>/cyrene-memory.md`），所以同一个角色在两个模式里的记忆是连续的。
 
 > ⚠️ **禁止商业使用。** 本项目为非官方同人作品，与 HoYoverse / 米哈游无任何关联、
 > 背书或赞助关系。角色 IP 归 HoYoverse / 米哈游所有。随包的人设文本整理自开源项目
@@ -15,10 +20,19 @@
 
 ## 关于随包的人设文本
 
-`preset/agent.cordis.yml` **已包含一份可用的角色人设**，装完即可对话。它来自开源项目
+两套预设都**已包含可用的角色人设**，装完即可对话。人设文本来自开源项目
 [Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)（MIT），
 **并已取得原作者同意**。许可与归属细节见
 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+
+> **两套预设用的是上游不同的提示词组**，这不是随意挑的：上游 `mode-prompt-profile.ts`
+> 把各模式拆成不同文件——对话模式用 `chat_system` + `chat_identity` + `soul` + `canon_quotes`，
+> 工作模式用 `work_system` + `work_identity` + `work_remark` + `canon_quotes_lite`，
+> 通用工具规范另接 `tool_usage`（且**只在非对话模式**接）。本仓库照搬这套组合，一字未改。
+>
+> ⚠️ 注意上游在**工作模式里刻意不用 `soul.md`**，改用精简台词集 —— 也就是说原应用的
+> "工作模式人设"本来就是**轻量版**。觉得干活时不够像角色，第一个该调的是这里
+> （把 `soul.md` 加回去），不是本插件的装配机制。
 
 > **授权凭据**：原作者在
 > [issue #137](https://github.com/Playa-Cyrene/Cyrene-Agent/issues/137#issuecomment-5969268084)
@@ -72,7 +86,7 @@
 ### 1. 装插件本体
 
 ```bash
-dsh plugin --profile <你的 profile> add dsh-cyrene-chat
+dsh plugin --profile <你的 profile> add dsh-cyrene
 ```
 
 `cordis.patch.yml` 是纯 `insert` 形式，可热挂载，通常不需要重启。
@@ -97,7 +111,13 @@ scripts\install.bat
 node scripts/install.mjs
 ```
 
-脚本会把 `preset/` 拷到 `~/.dsh/.agent-presets/chat/`。
+脚本会把 `preset/` 下的**每个子目录**装成对应的预设：
+`preset/chat/` → `~/.dsh/.agent-presets/chat/`，
+`preset/cyrene-work/` → `~/.dsh/.agent-presets/cyrene-work/`。
+
+预设 id 是**自动发现**的（扫描含 `agent.cordis.yml` 的子目录），所以以后新增预设
+只要在 `preset/` 下新建目录，四个安装脚本都不用改。
+
 如果目标已存在且内容不同，**默认拒绝覆盖**（避免抹掉你自己填的人设），
 要覆盖得加 `--force` / `-Force`，会先自动备份。
 
@@ -112,7 +132,14 @@ node scripts/install.mjs
 
 ### 4. 启用
 
-在 DSH 界面右上角的模式选择器里选 **「纯文本对话模式」**。
+**新建对话**时选其中一个模式：
+
+- **「纯文本对话模式」** —— 只聊天，不挂编码 / Shell / 设备工具
+- **「昔涟工作模式」** —— 同上人设，但带全套工具，能真正干活
+
+> ⚠️ DSH 的规则是**会话一旦说过话，预设就锁死**（服务端报 `agent-preset/locked`）。
+> 所以模式要**在新建对话时就选好**；已经聊过的会话改不了，只能再开一个。
+> 新建对话页的滑块只在空白会话出现，正是因为这个。
 
 ## 这个模式下有什么、没有什么
 
@@ -254,11 +281,14 @@ dsh plugin --profile <你的 profile> add <插件名>
 
 ## 自定义
 
-装好之后预设就在 `~/.dsh/.agent-presets/chat/`，**直接改那两个文件即可**，
-DSH 会按目录实时发现：
+装好之后预设就在 `~/.dsh/.agent-presets/<id>/`（`chat` 或 `cyrene-work`），
+**直接改那两个文件即可**，DSH 会按目录实时发现：
 
 - `preset.yml` —— 模态名称、描述、排序（`order`）
 - `agent.cordis.yml` —— 人设正文与工具挂载
+
+> 改的是 `~/.dsh/` 下**装好的那一份**；仓库里的 `preset/<id>/` 是发运模板，
+> 它不会自动跟着变。想把改动回灌进仓库，得手动同步过去。
 
 改完**不用重新安装插件**。但注意：重新跑 `install.sh` 时若检测到内容不同会拒绝覆盖，
 这正是为了防止你的改动被抹掉。
@@ -274,7 +304,7 @@ DSH 会按目录实时发现：
 ## 目录结构
 
 ```
-dsh-cyrene-chat/
+dsh-cyrene/
 ├── index.js                 宿主半体锚点（刻意不做任何运行时改动）
 ├── memory.js                会话级插件：长期记忆变量 + remember / forget 工具
 ├── nickname.js              会话级插件：称呼变量 {{user_nickname}}
@@ -289,8 +319,12 @@ dsh-cyrene-chat/
 ├── plugin.json              DSH 插件清单
 ├── dsh.plugin.json          同上（兼容不同版本的清单名）
 ├── preset/
-│   ├── agent.cordis.yml     完整人设 + 工具挂载（可直接用，也可替换）
-│   └── preset.yml           模态元信息
+│   ├── chat/
+│   │   ├── agent.cordis.yml 对话模式人设 + 工具挂载（可直接用，也可替换）
+│   │   └── preset.yml       模态元信息
+│   └── cyrene-work/
+│       ├── agent.cordis.yml 工作模式人设 + 标准模式全套工具
+│       └── preset.yml       模态元信息
 ├── scripts/
 │   ├── install.sh           Linux / macOS
 │   ├── install.ps1          Windows PowerShell
@@ -312,7 +346,11 @@ dsh-cyrene-chat/
 ## 排查
 
 **装了插件但模式选择器里没有新选项** —— 预设没装。跑 `scripts/install.*`，
-确认 `~/.dsh/.agent-presets/chat/` 下确实有 `agent.cordis.yml` 和 `preset.yml`。
+确认 `~/.dsh/.agent-presets/chat/` 与 `~/.dsh/.agent-presets/cyrene-work/` 下
+确实都有 `agent.cordis.yml` 和 `preset.yml`。
+
+**滑块上少了某一档** —— 新建对话页的滑块只在**空白会话**显示，且会话预设一旦
+锁定（发过消息）就随 Hero 一起消失，这是 DSH 的原生行为。
 
 **加载报 `Cannot find package`** —— `cordis.patch.yml` 里的 `name` 必须是实际包名，
 与 `package.json` 的 `name` 一致。
@@ -327,7 +365,7 @@ dsh-cyrene-chat/
 不要照搬上游 Cyrene-Agent 新版 prompts 里的模板变量。
 
 **想彻底卸载** —— `scripts/install.sh --uninstall` 删预设，再
-`dsh plugin --profile <你的 profile> remove dsh-cyrene-chat` 删插件。
+`dsh plugin --profile <你的 profile> remove dsh-cyrene` 删插件。
 
 ## 开发与测试
 
@@ -358,10 +396,13 @@ CI 在 `.github/workflows/test.yml`，Node 22 与 24 各跑一遍语法检查与
 
 本仓库的**代码**采用 **MIT License**，见 [`LICENSE`](./LICENSE)。
 
-`preset/agent.cordis.yml` 内的**人设文本**来自开源项目
+`preset/chat/agent.cordis.yml` 与 `preset/cyrene-work/agent.cordis.yml` 内的
+**人设文本**来自开源项目
 [Cyrene-Agent](https://github.com/Playa-Cyrene/Cyrene-Agent)
 （MIT License, Copyright (c) 2026 Playa），许可证副本见
 [`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)。
+两套预设分别取自上游不同模式的提示词组（对话组 / 工作组，外加通用工具规范），
+**均一字未改**，具体文件清单见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
 **角色 IP 声明**：Cyrene（昔涟）及《崩坏：星穹铁道》相关角色、世界观、名称与美术的
 知识产权归 **HoYoverse / 米哈游** 所有，**不属于本 MIT 授权范围**。本项目为
