@@ -22,6 +22,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -140,4 +141,43 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
       + `  预期只多：${ADDED.join(', ')}\n`
       + '→ 新增了附加行就把 ADDED 一起改掉；不是有意为之就删掉。',
   );
+});
+
+test('声明导出：0.2.0 的声明里 plugins 必须与原组合逐字相等', () => {
+  // DSH 0.2.0 起预设改为声明式注册（`@deepseek-ai/dsh-agent-preset` 的 config.plugins），
+  // 目录扫描不再生效。scripts/export-preset-declarations.mjs 负责把我们的组合
+  // 机械转换过去 —— 它要是缩进错一格、或者漏掉一段块标量，产出的声明就会**静默**
+  // 与源不一致。所以这里做往返比对：解析生成结果，与原组合深度相等才算通过。
+  //
+  // 本用例不依赖 DSH：只用到 node:child_process 与仓库自身的文件。
+
+  const generator = join(repoRoot, 'scripts', 'export-preset-declarations.mjs');
+  assert.ok(existsSync(generator), '生成器必须存在');
+
+  for (const id of PRESETS) {
+    const out = execFileSync(process.execPath, [generator, id], { encoding: 'utf8' });
+    // 生成结果 = 声明头（若干行）+ `    plugins:` + 整体缩进 6 格的组合正文。
+    // 所以起点要认 **`plugins:` 之后**那一行，不能找第一个 `- id:` ——
+    // 第一个 `- id:` 是声明自身（缩进 0），照它反缩进等于没缩进（这个坑踩过）。
+    const dedent = (text) => {
+      const lines = text.replace(/\r\n/g, '\n').split('\n');
+      const marker = lines.findIndex((l) => l.trim() === 'plugins:');
+      assert.ok(marker >= 0, `${id} 的生成结果里找不到 plugins:`);
+      const body = lines.slice(marker + 1).filter((l) => l.trim() !== '');
+      assert.ok(body.length > 0, `${id} 的 plugins: 之后是空的`);
+      const base = Math.min(...body.map((l) => l.length - l.trimStart().length));
+      return body.map((l) => l.slice(base)).join('\n').trimEnd();
+    };
+    const src = readFileSync(presetFile(id), 'utf8')
+      .replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim() !== '').join('\n').trimEnd();
+    // 生成结果里，组合被整体缩进 6 格再嵌进 plugins:，反缩进后还应与源一致；
+    // 但生成结果前面多了声明头，所以只取从 `- id: persona` 起的那段。
+    const genBody = dedent(out);
+    const srcBody = src.slice(src.indexOf('- id: persona'));
+    assert.equal(
+      genBody.slice(genBody.indexOf('- id: persona')),
+      srcBody,
+      `${id} 的声明导出与源组合不一致 —— 生成器缩进逻辑坏了`,
+    );
+  }
 });

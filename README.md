@@ -125,6 +125,24 @@ node scripts/install.mjs
 `preset/chat/` → `~/.dsh/.agent-presets/chat/`，
 `preset/cyrene-work/` → `~/.dsh/.agent-presets/cyrene-work/`。
 
+> ### ⚠️ DSH 0.2.0 及以上：上面这一步**不会生效**（而且不报错）
+>
+> 0.2.0 起预设改为**声明式注册表**，官方文档原话是「注册表不扫描目录，也不接受
+> preset 路径」。此时 `scripts/install.*` 依然会成功执行、依然打印"已安装"，
+> 但预设**不会出现在界面上**，也没有任何报错。
+>
+> 这一代的正确做法是声明：
+>
+> ```bash
+> node scripts/export-preset-declarations.mjs --out=preset-declarations.yml
+> ```
+>
+> 生成的内容贴进 `<DSH_HOME>/profiles/<你的 profile>/cordis.patch.yml`
+> （该文件顶层是一个数组，把内容追加进数组即可）。
+>
+> **怎么判断自己是哪一代？** 界面里模式选择器没出现本项目的两个模式、
+> 但目录确实装好了 —— 那就是 0.2.0+，用上面的声明方式。
+
 预设 id 是**自动发现**的（扫描含 `agent.cordis.yml` 的子目录），所以以后新增预设
 只要在 `preset/` 下新建目录，四个安装脚本都不用改。
 

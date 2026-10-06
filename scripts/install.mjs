@@ -150,6 +150,23 @@ async function main() {
   console.log('');
   console.log('提示：这些预设都用 complete: true 整份替换系统提示词，共享同一份长期记忆');
   console.log(`      （${join(dshHome, 'cyrene-memory.md')}）。`);
+  console.log('');
+  // ⚠️ 这段不是客套话，是防"静默失败"。
+  //
+  // 0.2.0 换掉了预设发现机制：它的 agent-preset-registry 文档明写
+  // "注册表不扫描目录，也不接受 preset 路径"。本脚本做的正是"拷目录"，
+  // 所以在 0.2.0+ 上它**会照常成功、照常打印"已安装"，而预设根本不出现** ——
+  // 实测反馈里那位 Windows 用户撞的就是这个，排查成本很高。
+  //
+  // 这里不做版本探测（探测不可靠：不知道对方 DSH 装在哪），而是把两条路都讲清楚。
+  console.log('⚠️ 如果你用的是 DSH 0.2.0 或更新：上面的目录方式【不会生效】。');
+  console.log('   0.2.0 起改用声明式注册表，它不扫描 ~/.dsh/.agent-presets/。');
+  console.log('   请改用声明方式：');
+  console.log('     node scripts/export-preset-declarations.mjs --out=preset-declarations.yml');
+  console.log('   然后把生成的内容贴进你的 profile 补丁：');
+  console.log(`     ${join(dshHome, 'profiles', '<你的 profile>', 'cordis.patch.yml')}`);
+  console.log('   （该文件顶层是一个数组，把内容追加进数组即可。）');
+  console.log('   0.1.x 用户忽略这段 —— 目录方式在那一代是对的。');
 }
 
 await main();

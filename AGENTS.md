@@ -39,6 +39,32 @@ npm run harness:check # 全部运行时代码的语法检查
 | 预设 YAML `preset/<id>/agent.cordis.yml` | **下次新建会话**，不用重启（但已加入的会话保留旧组装） |
 | 插件源码 `.js` / `.mjs` | **必须重启** —— loader 用裸 `import()`，没有缓存击穿 |
 
+## ⚠️ 预设的安装方式在 DSH 0.2.0 变了（静默失效）
+
+**0.1.x**：预设由 `dsh-agent-presets` **扫描目录**发现 —— `~/.dsh/.agent-presets/<id>/`。
+`scripts/install.*` 做的就是这件事。
+
+**0.2.0 起**：换成声明式注册表。`@deepseek-ai/dsh-agent-preset-registry` 的文档原话是
+「**注册表不扫描目录，也不接受 preset 路径**」；预设改为一行插件声明：
+
+```yaml
+- id: preset-<你起的名字>
+  name: '@deepseek-ai/dsh-agent-preset'
+  config:
+    id: <预设 id>
+    name / description / order: …（可选）
+    plugins: [ …整套 entry list… ]     # 必填
+```
+
+**危险的地方在于它不报错。** 在 0.2.0+ 上跑 `scripts/install.mjs` 依然会成功、
+依然打印"已安装"、目录也确实出现了 —— 但预设**永远不出现在界面上**。实测反馈里
+一位 Windows 用户（桌面版 0.2.0-rc.2）就卡在这里，排查成本很高。
+
+对策：`scripts/export-preset-declarations.mjs` 把 `preset/<id>/` 机械转换成上面那种
+声明（组合本身就是 entry list，只做整体缩进，不改写内容），生成的片段贴进
+`<DSH_HOME>/profiles/<profile>/cordis.patch.yml`。`tests/preset.test.mjs` 有一条
+往返用例守着它 —— 那个生成器错了会**静默**产出不一致的声明。
+
 ## 来源与边界
 
 - **人设文本与世界书数据来自 Cyrene-Agent（MIT）**，不是本项目原创。字段的**语义**
@@ -77,8 +103,7 @@ npm run harness:check # 全部运行时代码的语法检查
 > 有条件的话请务必在真机上跑一次 `install.ps1`，然后把上面对应的"未验"改成"已验"。
 
 
-> **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
-> standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
+> **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置> standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
 > 就是为此设的：**它只在装了 DSH 的机器上跑**，所以别把它当成 CI 覆盖到了。
 
 
