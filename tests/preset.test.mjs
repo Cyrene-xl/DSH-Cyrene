@@ -77,7 +77,16 @@ function rowIds(rows) {
 const PRESETS = ['chat', 'cyrene-work'];
 const presetFile = (id) => join(repoRoot, 'preset', id, 'agent.cordis.yml');
 
-test('预设：两个预设的 YAML 都能解析，且都是完整替换系统提示词', () => {
+/**
+ * 本文件**每一条**测试都要经过它 —— 全都依赖 `yaml` 与内置 standard 预设。
+ *
+ * ⚠️ 别改成裸 `test(...)`。这里原本是逐条手写 `{ skip }`，结果只给第三条加了，
+ *    前两条照跑，CI 上直接 `TypeError: Cannot read properties of undefined
+ *    (reading 'YAML')` —— 两次 job 全红。统一走这个入口，就不存在"漏加一条"。
+ */
+const guarded = (name, fn) => test(name, { skip: skipUpstream }, fn);
+
+guarded('预设：两个预设的 YAML 都能解析，且都是完整替换系统提示词', () => {
   for (const id of PRESETS) {
     const doc = parse(presetFile(id));
     assert.ok(Array.isArray(doc), `${id} 顶层必须是插件行数组`);
@@ -93,7 +102,7 @@ test('预设：两个预设的 YAML 都能解析，且都是完整替换系统�
   }
 });
 
-test('预设：两套预设挂的插件不完全相同 —— 别把「挂预设里」当成「两个模式都有」', () => {
+guarded('预设：两套预设挂的插件不完全相同 —— 别把「挂预设里」当成「两个模式都有」', () => {
   const chatIds = rowIds(parse(presetFile('chat')));
   const workIds = rowIds(parse(presetFile('cyrene-work')));
   // 记忆与世界书两个模式共享
@@ -106,7 +115,7 @@ test('预设：两套预设挂的插件不完全相同 —— 别把「挂预设
   assert.ok(!workIds.includes('cyrene-nickname'), 'cyrene-work 不应挂 cyrene-nickname');
 });
 
-test('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允许已知附加项', { skip: skipUpstream }, () => {
+guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允许已知附加项', () => {
   const stdIds = rowIds(parse(upstream.stdPath));
   const mineIds = rowIds(parse(presetFile('cyrene-work')));
 
