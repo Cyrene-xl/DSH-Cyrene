@@ -189,8 +189,19 @@ node scripts/install.mjs
 | 可配置称呼 | ✅ 本包 `nickname.js` 提供 `{{user_nickname}}` | ❌ **未挂** —— 人设正文也没引用它 |
 | 文件读写 / Shell / 文件检索 | ❌ 不提供 | ✅ `bash` / `pwsh` / `tool-fs` / `tool-fs-search` |
 | 计划 / 目标 / Skills | ❌ 不提供 | ✅ `plan-mode` / `tool-goal` / `tool-skill` |
-| 子代理 / workflow / ralph | ❌ 不提供 | ✅ `tool-subagent`（含 fork）/ `tool-workflow` / `tool-ralph` |
+| 子代理（含 fork） | ❌ 不提供 | ✅ `tool-subagent` / `tool-subagent-fork` |
+| workflow / ralph | ❌ 不提供 | ⚠️ **默认关闭**（见下） |
 | 表情包 | ⚠️ 需另装 `dsh-meme` 才生效（见下） | ⚠️ 同上 |
+
+> **为什么 workflow / ralph 默认关着？** 这三行（`workflow-worker-thread`、
+> `tool-workflow`、`tool-ralph`）依赖 `workflowEngine` 服务，而该 worker
+> **在某些部署里起不来**（实测：DSH 桌面端 0.2.0-rc.2）。起不来时它们会一直
+> `waiting for workflowEngine`，激活审计据此判定**整条预设「加载失败」**——
+> 用户看到的是这两个预设里只有对话模式能用，工作模式根本不出现。
+>
+> 取舍很直接：**少三个工具 ≪ 整条预设加载失败**。所以默认关掉。
+> 想在能跑 workflow 的部署里启用：把 `preset/cyrene-work/agent.cordis.yml` 里
+> 那三行的 `disabled: true` 删掉即可（先确认 `workflowEngine` 在你那儿能起来）。
 
 **这就是两套预设的意义**：以前想用角色人设就得放弃干活能力，于是只能"要干活时切回
 原来的工作模式"。现在**「昔涟工作模式」两者兼得** —— 角色人设整份替换系统提示词，

@@ -892,16 +892,34 @@
         backgroundMode: one-shot
         maxDepth: provider-managed
 
+    # ── 以下三行默认 disabled: true（本项目改动，非上游写法）────────────────
+    #
+    # 原因：这三行依赖 `workflowEngine` 这个服务，而它由 `workflow-worker-thread`
+    # 提供。**在某些部署里这个 worker 起不来**（实测：DSH 桌面端 0.2.0-rc.2），
+    # 于是 `tool-workflow` / `tool-ralph` 一直 "waiting for workflowEngine"，
+    # 激活审计据此判定**整条预设「加载失败」** —— 用户看到的是两个预设里
+    # 只有 `chat` 能用，而 `cyrene-work` 根本不出现。
+    #
+    # 取舍很清楚：**少三个工具 ≪ 整条预设加载失败**。所以默认关掉。
+    #
+    # 想在能跑 workflow 的部署里启用：把下面三行的 `disabled: true` 删掉即可
+    # （先确认 `workflowEngine` 在你那儿能起来 —— 起不来会连累整条预设）。
+    #
+    # ⚠️ 内置 standard 预设里这三行**没有** disabled。这是本预设与上游抄本之间
+    #    **唯一一处有意的差异**，tests/preset.test.mjs 有断言盯着它。
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'
+      disabled: true
       config:
         provider: spawn
 
     - id: tool-workflow
       name: '@deepseek-ai/dsh-tool-workflow'
+      disabled: true
 
     - id: tool-ralph
       name: '@deepseek-ai/dsh-tool-ralph'
+      disabled: true
       config:
         subagentProvider: spawn
         maxRounds: 64

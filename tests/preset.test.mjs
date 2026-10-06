@@ -141,6 +141,44 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
       + `  预期只多：${ADDED.join(', ')}\n`
       + '→ 新增了附加行就把 ADDED 一起改掉；不是有意为之就删掉。',
   );
+
+  // 3) 与上游**有意不同**的地方：这三行我们默认 disabled。
+  //
+  //    它们依赖 `workflowEngine`，而该服务在某些部署里起不来（实测 DSH 桌面端
+  //    0.2.0-rc.2）：`tool-workflow` / `tool-ralph` 会一直 waiting，激活审计据此
+  //    判定**整条预设加载失败** —— 用户看到的是预设根本不出现。
+  //    取舍：少三个工具 ≪ 整条预设加载失败。
+  //
+  //    这条断言的作用：将来若有人从 standard 重新整段抄一遍，会把 disabled 一起
+  //    丢掉、于是又踩回同一个坑。这里点出来，改的话必须同时改这行。
+  const INTENTIONALLY_DISABLED = ['workflow-worker-thread', 'tool-workflow', 'tool-ralph'];
+  const mine = parse(presetFile('cyrene-work'));
+  const std = parse(upstream.stdPath);
+  const disabledOf = (rows) => {
+    const out = [];
+    const walk = (list) => {
+      for (const row of list ?? []) {
+        if (row && typeof row === 'object') {
+          if (row.disabled === true && typeof row.id === 'string') out.push(row.id);
+          if (row.group === true) walk(row.config);
+        }
+      }
+    };
+    walk(rows);
+    return out;
+  };
+  const mineDisabled = disabledOf(mine);
+  const stdDisabled = disabledOf(std);
+  const newlyDisabled = mineDisabled.filter((id) => !stdDisabled.includes(id)).sort();
+  assert.deepEqual(
+    newlyDisabled,
+    [...INTENTIONALLY_DISABLED].sort(),
+    `cyrene-work 相对 standard 关闭的行不是预期集合。\n`
+      + `  实际多关：${newlyDisabled.join(', ') || '(无)'}\n`
+      + `  预期只关：${INTENTIONALLY_DISABLED.join(', ')}\n`
+      + '→ 这三行依赖 workflowEngine，在起不来它的部署上会让**整条预设**判失败。'
+      + '改这个集合就要同时改这条断言。',
+  );
 });
 
 test('声明导出：0.2.0 的声明里 plugins 必须与原组合逐字相等', () => {
