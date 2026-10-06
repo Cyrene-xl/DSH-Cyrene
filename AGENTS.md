@@ -82,7 +82,7 @@ npm run harness:check # 全部运行时代码的语法检查
 
 | 对象 | 状态 | 怎么验的 |
 | --- | --- | --- |
-| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（72 条）+ `npm run harness:check`（全量语法检查） |
+| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（73 条）+ `npm run harness:check`（全量语法检查） |
 | `preset/chat/`、`preset/cyrene-work/` 的 YAML | ✅ 已验 | 解析 + 结构断言（`tests/preset.test.mjs`：条目数、`complete: true`、两模式挂载差异） |
 | `preset/cyrene-work/` 的**工具行与内置 standard 的同步性** | ✅ 已验（**装了 DSH 才跑**） | `tests/preset.test.mjs` 的漂移护栏：断言比 standard 少 0 行、多出的只允许 `cyrene-memory` / `dsh-cyrene-worldbook`。CI 上没有 DSH，该文件整体跳过 |
 | `scripts/install.sh` | ✅ 已验 | 用**临时 `DSH_HOME`** 实跑：安装 → 幂等复跑报"已是最新" → `--uninstall` |

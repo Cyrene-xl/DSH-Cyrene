@@ -238,3 +238,33 @@ test('声明导出：0.2.0 的声明里 plugins 必须与原组合逐字相等',
     );
   }
 });
+
+test('发版：三处版本号必须一致，且 CHANGELOG 里有对应条目', () => {
+  // 这条不是形式主义：版本号散在三个清单文件里，**漏改一个不会报错**，
+  // 只会让某一部分使用者看到旧号（上次被评审抓到的就是这个）。
+  // 打 tag 时最容易只改 package.json —— 所以让"三处一致"变成可检查的事实。
+  const read = (f) => JSON.parse(readFileSync(join(repoRoot, f), 'utf8'));
+  const pkg = read('package.json');
+  const listed = {
+    'package.json (version)': pkg.version,
+    'package.json (dsh.version)': pkg.dsh?.version,
+    'plugin.json': read('plugin.json').version,
+    'dsh.plugin.json': read('dsh.plugin.json').version,
+  };
+  const distinct = [...new Set(Object.values(listed))];
+  assert.equal(
+    distinct.length,
+    1,
+    `版本号不一致：${Object.entries(listed).map(([k, v]) => `${k}=${v}`).join('，')}\n`
+      + '→ 三处清单必须同时改（package.json 里有两处）。',
+  );
+  const version = distinct[0];
+  assert.match(version, /^\d+\.\d+\.\d+$/, `版本号形状不对：${version}`);
+
+  // 打了 tag 却没写更新记录，使用者就不知道要不要升级 —— 这条把它绑在一起。
+  const changelog = readFileSync(join(repoRoot, 'CHANGELOG.md'), 'utf8');
+  assert.ok(
+    changelog.includes(`## [${version}]`),
+    `CHANGELOG.md 里没有 ${version} 的条目 —— 发版前先写「要不要升级、升级能解决什么」`,
+  );
+});

@@ -439,7 +439,7 @@ dsh-cyrene/
 ## 开发与测试
 
 ```bash
-npm test              # 单元测试（当前 72 条）
+npm test              # 单元测试（当前 73 条）
 npm run harness:check # 语法检查：对所有运行时代码做 node --check
 ```
 
