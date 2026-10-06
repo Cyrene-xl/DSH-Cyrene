@@ -92,33 +92,36 @@ test('可移植性：Windows 脚本必须是 CRLF、POSIX 脚本必须是 LF', (
   );
 });
 
-test('可移植性：.gitattributes 必须继续锁住这两类文件', () => {
+test('可移植性：.gitattributes 的行尾规则与仓库现状一致', () => {
   const ga = join(repoRoot, '.gitattributes');
-  assert.ok(existsSync(ga), '.gitattributes 不能删 —— 删了 Windows 用户会重新踩坑');
+  assert.ok(existsSync(ga), '.gitattributes 不能删 —— 删了 POSIX 脚本的行尾就没人守了');
   const text = readFileSync(ga, 'utf8');
-  for (const rule of ['*.ps1', '*.bat', '*.sh']) {
-    assert.ok(text.includes(rule), `.gitattributes 应包含 ${rule} 的行尾规则`);
-  }
-  // Windows 脚本必须是 `-text`（**不让 Git 转换**），而不是 `text eol=crlf`：
-  // 后者只在检出时转 CRLF，**blob 里仍是 LF** —— 于是 git pull 过的人、以及用
-  // raw / jsDelivr 下载的人拿到的还是 LF。这是真实反馈里量了 blob SHA256 才发现的。
+  assert.match(text, /\*\.sh[^\n]*eol=lf/, '*.sh 必须锁 eol=lf');
+
+  // 仓库里已经没有 Windows 脚本了（install.ps1 / .bat 已删除，原因见 README）。
+  // 所以下面两条改成**条件式**：现在没有 .ps1/.bat → 跳过；将来加回来 → 立刻生效。
+  const winScripts = collect(join(repoRoot, 'scripts'), ['.ps1', '.bat', '.cmd']);
+  if (winScripts.length === 0) return;
+  // 有 Windows 脚本就必须让 **blob 本身**是 CRLF：用 `-text`，不是 `text eol=crlf`
+  // ——后者只转检出，blob 里仍是 LF，拉过代码的人和 raw 下载的人拿不到修复。
   assert.match(text, /\*\.ps1[^\n]*-text/, '*.ps1 必须是 -text（blob 里就得是 CRLF）');
   assert.match(text, /\*\.bat[^\n]*-text/, '*.bat 必须是 -text');
-  assert.match(text, /\*\.sh[^\n]*eol=lf/, '*.sh 必须锁 eol=lf');
-  // 反向断言：不许再退回 eol=crlf 那种"只转检出"的写法
   assert.doesNotMatch(text, /^\*\.ps1[^\n]*eol=crlf/m, '*.ps1 不该用 eol=crlf —— 那修不了 blob');
 });
 
-test('可移植性：PowerShell 5.1 不支持的写法不得出现在 .ps1 里', () => {
-  // 两次真实 Windows 反馈换来的规则。5.1 的解析器在这两种写法上会**失步** ——
+test('可移植性：若存在 .ps1，则不得含 PowerShell 5.1 会失步的写法', () => {
+  // 三轮真实 Windows 反馈换来的规则。5.1 的解析器在这两种写法上会**失步** ——
   // 报错位置漂到后面几十行的某个 `}` 上，看起来跟肇事那行毫无关系，极难查。
   //
   //   1. here-string（`@" ... "@`）遇上 LF 行尾：解析失败。
   //   2. `$x = if (...) { } else { }`：把 if 当表达式赋值是 PowerShell 7 的写法。
   //
   // 两者在 Linux 上都不会被发现（我们根本不跑 PowerShell），所以写成静态断言。
+  //
+  // 现状：仓库里已无 .ps1（已删除），所以这条现在是空跑。**留着是为了将来** ——
+  // 若有人重新加回 Windows 脚本，这三条会立刻生效。
   const files = collect(join(repoRoot, 'scripts'), ['.ps1']);
-  assert.ok(files.length > 0, '应当至少有一个 .ps1');
+  if (files.length === 0) return;
 
   const problems = [];
   for (const file of files) {

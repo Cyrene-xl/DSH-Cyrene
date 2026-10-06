@@ -86,16 +86,24 @@ npm run harness:check # 全部运行时代码的语法检查
 | `preset/chat/`、`preset/cyrene-work/` 的 YAML | ✅ 已验 | 解析 + 结构断言（`tests/preset.test.mjs`：条目数、`complete: true`、两模式挂载差异） |
 | `preset/cyrene-work/` 的**工具行与内置 standard 的同步性** | ✅ 已验（**装了 DSH 才跑**） | `tests/preset.test.mjs` 的漂移护栏：断言比 standard 少 0 行、多出的只允许 `cyrene-memory` / `dsh-cyrene-worldbook`。CI 上没有 DSH，该文件整体跳过 |
 | `scripts/install.sh` | ✅ 已验 | 用**临时 `DSH_HOME`** 实跑：安装 → 幂等复跑报"已是最新" → `--uninstall` |
-| `scripts/install.mjs` | ✅ 已验 | 同上（安装 / 幂等 / 卸载三条都跑过） |
-| `scripts/install.ps1` | ⚠️ **未验（开发机无 PowerShell）** | 只在开发机人工审查过。**已收到一次真实 Windows 反馈**：LF 行尾 + 多行管道 → PowerShell 5.1 报 `unexpected token ')'`。已修（见下）；但修完**仍未在真实 Windows 上复跑** |
-| `scripts/install.bat` | ⚠️ **未验** | 同上（它只是转调 `.ps1`） |
+| `scripts/install.mjs` | ✅ 已验 | 同上（安装 / 幂等 / 卸载三条都跑过）。**Windows 也走这条** |
+| `scripts/export-preset-declarations.mjs` | ✅ 已验 | 往返比对：解析生成结果，`insert[0].config.plugins` 与源组合深度相等；且断言 patch 顶层只允许出现 `- insert:` |
+| ~~`scripts/install.ps1` / `install.bat`~~ | **已删除** | 作者没有自己的电脑，项目是在 DSH App（Android）里做的 —— 那两个脚本**无法实测**，靠用户反馈连试三轮仍未跑通。与其留一条没人能验证的路，不如删掉。详见下面「Windows 已知坑」 |
 
-> **Windows 两条路径的已知坑（全部来自真实反馈，不是推测）：**
+> ### Windows 脚本已移除，但坑记在这儿
 >
-> 1. **行尾必须是 CRLF —— 而且必须是 *blob* 里的 CRLF。** 这里是连续两轮才修对的：
+> `scripts/install.ps1` 与 `install.bat` **已经删掉**。原因写在 README 里：
+> 作者没有自己的电脑，项目是在 DSH App（Android）上做的，没有 Windows 也没有
+> PowerShell —— 那两个脚本无法实测，靠用户反馈连试三轮仍未跑通。
+> Windows 用户改走 `node scripts/install.mjs`。
+>
+> **下面是那三轮真实反馈换来的坑，将来若恢复 Windows 脚本，请先逐条读完。**
+> 全部来自实测，不是推测：
+>
+> 1. **行尾必须是 CRLF —— 而且必须是 *blob* 里的 CRLF。** 这里是连续两轮才想明白的：
 >    第一轮用 `*.ps1 text eol=crlf`，只做到"**检出时**转 CRLF"，**blob 里存的仍是 LF**。
 >    于是 `git pull` 过的人（内容未变的文件不会重新检出）和用 raw / jsDelivr 下载的人
->    拿到的还是 LF。反馈者量了 blob 的 SHA256 才发现。现在改成 `-text` —— 不让 Git
+>    拿到的还是 LF。反馈者量了 blob 的 SHA256 才发现。要用 `-text` —— 不让 Git
 >    做任何转换，**工作区是什么就存什么**，谁拿到都是 CRLF。
 >    （代价：这几类文件在 Git 里按二进制看待、diff 不再逐行。）
 > 2. **管道不要跨行写。** 5.1 对"行尾悬空 `|`"的处理不可靠。
@@ -109,19 +117,17 @@ npm run harness:check # 全部运行时代码的语法检查
 >    `main()` 从不执行：**exit 0、零输出、零报错**。必须用 `pathToFileURL(process.argv[1]).href`。
 >
 > 这些**都只能靠真实 Windows 暴露** —— 开发机上 `node --check`、`npm test`、人工审查
-> 全都看不出来。所以 `tests/portability.test.mjs` 把它们写成**静态断言**（行尾、
-> `.gitattributes` 规则、入口判断、PS 5.1 禁用写法），改回去就会被拦下。
+> 全都看不出来。所以 `tests/portability.test.mjs` 把它们写成**静态断言**：入口判断、
+> POSIX 脚本行尾，以及"**若**仓库里出现 `.ps1`/`.bat` 就必须满足的几条规则"
+> （现在没有这类文件，那几条自动跳过；将来加回来就会立刻生效）。
 >
-> ⚠️ 即便如此：`install.ps1` 这条路的修复**仍未在真实 Windows 上复跑通过**。
-> 有条件的话请在真机上验证后再把"未验"改成"已验"。
+> 📌 **将来恢复 Windows 脚本的正确姿势**：先在有 Windows 的机器上把
+> `install.ps1` 真跑通、确认五条坑都避开，**再**提交 —— 不要凭着"看着没问题"就发。
+> 这个仓库在这一件事上已经浪费了三轮。
 
 > **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
 > standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
 > 就是为此设的：**它只在装了 DSH 的机器上跑**，所以别把它当成 CI 覆盖到了。
-
-
-**两条 Windows 路径是本仓库唯一没被实跑过的代码。** 改动它们时格外小心；有条件的话
-在真实 Windows 上跑一遍再改"已验"。不要在 release notes 里把它们写成已测试。
 
 > 验证安装脚本时**务必用临时 `DSH_HOME`**（`DSH_HOME=/tmp/xxx scripts/install.sh`），
 > 否则会覆盖真实 `~/.dsh/.agent-presets/` 下你正在用的预设。

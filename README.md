@@ -101,25 +101,24 @@ dsh plugin --profile <你的 profile> add dsh-cyrene
 # Linux / macOS
 ./scripts/install.sh
 
-# Windows PowerShell
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
-
-# Windows 双击
-scripts\install.bat
-
-# 任意平台（无 shell 依赖，Node 22+）
+# 任意平台（含 Windows，无 shell 依赖，Node 22+）
 node scripts/install.mjs
 ```
 
-> ⚠️ **Windows 的两条路径（`install.ps1` / `install.bat`）目前仍是"尽力维护"，尚未验证通过。**
+> ### 为什么没有 Windows 专用脚本
 >
-> 开发环境没有 PowerShell，改完只能做静态审查。已收到**两轮**真实 Windows 反馈，
-> 逐条修掉了：LF 行尾（并改为让 *blob* 本身就是 CRLF）、跨行管道、here-string、
-> 把 `if` 当表达式赋值。**但最新一版仍未在真机上跑通过。**
+> 以前有 `scripts/install.ps1` 和 `install.bat`，**已经删掉了**。
 >
-> **Windows 用户建议直接用 `node scripts/install.mjs`** —— 跨平台、无 shell 依赖，
-> 已用临时 `DSH_HOME` 实测过（安装 / 幂等 / 卸载）。遇到任何问题都请优先走它。
-> 细节见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
+> 原因很直接：**我没有自己的电脑，这一整套是在 DSH App（Android）里做的** ——
+> 开发环境里没有 Windows、也没有 PowerShell，那两个脚本我**根本没法实测**，
+> 只能靠用户反馈来回试，连试三轮都没在真机上跑通。
+>
+> 与其留一条**没人能验证**的路，不如只留一条能跑通的。Windows 用户请直接用
+> `node scripts/install.mjs` —— 跨平台、无 shell 依赖，已实测过安装 / 幂等 / 卸载。
+>
+> **要是它在你的 Windows 上不适配**：那大概率得等我以后有了自己的电脑，
+> 才能把那部分补回来重做一遍。在那之前上面这条 `install.mjs` 就是 Windows 的路。
+> 细节（含哪些验过、哪些没验过）见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
 
 脚本会把 `preset/` 下的**每个子目录**装成对应的预设：
 `preset/chat/` → `~/.dsh/.agent-presets/chat/`，
@@ -381,12 +380,13 @@ dsh-cyrene/
 │       └── preset.yml       模态元信息
 ├── scripts/
 │   ├── install.sh           Linux / macOS
-│   ├── install.ps1          Windows PowerShell
-│   ├── install.bat          Windows 双击入口
-│   └── install.mjs          跨平台（Node）
+│   ├── install.mjs          跨平台（Node，Windows 也走这条）
+│   └── export-preset-declarations.mjs  DSH 0.2.0+ 的声明式预设导出
 ├── tests/
 │   ├── worldbook.test.mjs   世界书解析 / 匹配 / 组装 / 注入层的单元测试
-│   └── memory.test.mjs      记忆的净化 / 限长 / forget 边界 / 注入块包裹
+│   ├── memory.test.mjs      记忆的净化 / 限长 / forget 边界 / 注入块包裹
+│   ├── preset.test.mjs      预设结构 + 与内置 standard 的漂移护栏 + 声明导出往返
+│   └── portability.test.mjs 只有别的平台才暴露得出来的写法（静态断言）
 ├── docs/
 │   ├── writing-your-preset.md   怎么写自己的人设
 │   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
