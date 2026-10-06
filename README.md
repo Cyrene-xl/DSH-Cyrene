@@ -446,8 +446,16 @@ npm run harness:check # 语法检查：对所有运行时代码做 node --check
 **不需要 `npm install`** —— 运行时代码与测试都只用 Node 内置模块，没有依赖，所以也没有 lockfile。
 Node ≥ 22 即可。
 
-CI（`.github/workflows/test.yml`）在两个平台上跑：`ubuntu-latest` 的 Node 22/24 矩阵，
-以及一个 **`windows-latest`** job —— 后者专门补作者本地覆盖不到的那块（见下）。
+⚠️ **不要写 `node --test tests/`**（带尾斜杠）—— Node 会把目录当模块解析，报
+`MODULE_NOT_FOUND`。要用 `npm test`，或 `node --test "tests/*.mjs"`。
+本仓库的测试文件顶部早先就写错过这条命令，注意别再改回去。
+
+CI 在 `.github/workflows/test.yml`：`ubuntu-latest` 的 Node 22 / 24 矩阵各跑一遍，
+外加一个 **`windows-latest`** job —— 后者专门补作者本地覆盖不到的那块（见下）。
+
+世界书那部分刻意做成**纯函数 + 薄注入层**：`worldbook/{parse,match,assemble}.mjs`
+不碰任何 DSH API，可以直接单测；只有 `worldbook/index.mjs` 与 DSH 交互。
+要改匹配逻辑，改前者；要改注入时机，改后者。
 
 ## 维护边界
 
@@ -465,16 +473,6 @@ DSH App 里做的 —— 本地没有 Windows、没有 PowerShell、也没有 ma
 
 想参与的话请先读 [`CONTRIBUTING.md`](./CONTRIBUTING.md)（含"平台相关改动必须先真机跑通"
 这条硬规则）；已知的桌面端坑在 [`docs/windows.md`](./docs/windows.md)。
-
-⚠️ **不要写 `node --test tests/`**（带尾斜杠）—— Node 会把目录当模块解析，报
-`MODULE_NOT_FOUND`。要用 `npm test`，或 `node --test "tests/*.mjs"`。
-本仓库的测试文件顶部早先就写错过这条命令，注意别再改回去。
-
-CI 在 `.github/workflows/test.yml`，Node 22 与 24 各跑一遍语法检查与测试。
-
-世界书那部分刻意做成**纯函数 + 薄注入层**：`worldbook/{parse,match,assemble}.mjs`
-不碰任何 DSH API，可以直接单测；只有 `worldbook/index.mjs` 与 DSH 交互。
-要改匹配逻辑，改前者；要改注入时机，改后者。
 
 **动手前请先读 [`docs/pitfalls.md`](./docs/pitfalls.md)** —— 里面记了三个**只能踩出来、
 不在 DSH 官方文档里**的行为（装配跑在用户消息落库之前、`llm/stream` 的 messages 冻结、

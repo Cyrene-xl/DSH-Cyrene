@@ -14,10 +14,22 @@
 # ## 将来若真的恢复 Windows 脚本
 #
 # 请先读 AGENTS.md 的「Windows 已知坑」一节 —— 那里记着五条真实踩过的坑。
-# 并且把下面这两行加回来：
+# 并且把下面这两行加回来，**必须加在文件最后**（gitattributes 以最后一条匹配的规则为准，
+# 写在 `* text=auto eol=lf` 前面会被它盖掉）：
 #
 #   *.ps1 -text      # ← 必须是 -text（blob 里就得是 CRLF），不是 text eol=crlf
 #   *.bat -text      #    eol=crlf 只转检出，blob 里仍是 LF，拉过代码的人拿不到修复
 #
-# POSIX 原生执行 —— 必须 LF（否则在 Windows 上被转成 CRLF 后在 Linux/macOS 上跑不了）
+# 默认行尾一律 LF（含 .md / .mjs / .yml 等所有文本文件）。
+#
+# 为什么要有这条：CI 的 windows-latest job 上线当天，检出用的是 Windows 默认的
+# `core.autocrlf=true`，世界书那 61 条 .md 全变成 CRLF，按 `\n` 切行后每个字段尾部
+# 都挂上 `\r` —— 触发词永远匹配不上，世界书**整条静默失效**（7 条测试同时红）。
+#
+# 解析层已经改成容错 CRLF（worldbook/parse.mjs），这条是第二道防线：
+# 让所有平台的检出保持同一种行尾，免得文件里再散落不可见的 `\r`。
+* text=auto eol=lf
+
+# POSIX 原生执行 —— 必须 LF。显式写出来，别只依赖上面那行（后人删掉上面那行时
+# 这条还得在）。
 *.sh text eol=lf

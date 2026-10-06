@@ -11,10 +11,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { parseWorldbookText, loadWorldbookDirectory } from '../worldbook/parse.mjs';
+import { parseWorldbookText, parseWorldbookDocs, loadWorldbookDirectory } from '../worldbook/parse.mjs';
 import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE } from '../worldbook/match.mjs';
 import { assembleWorldbook, buildInjection, DEFAULT_FORMAT } from '../worldbook/assemble.mjs';
 import { recentUserTexts, apply as applyWorldbook } from '../worldbook/index.mjs';
@@ -565,4 +565,64 @@ test('真实数据：能真的匹配到东西', { skip: !existsSync(REAL_DIR) &&
   const built = buildInjection(entries, corpus);
   assert.ok(built.count > 0, '应当有命中');
   assert.ok(built.text.includes('翁法罗斯之心'));
+});
+
+// ───────────────────────── 行尾 ─────────────────────────
+//
+// 下面两条对应 CI 加了 `windows-latest` 之后**当场抓到的那批红**（7 条同时失败）。
+// 根因不在测试：世界书是 .md，Windows 上 `core.autocrlf=true`（GitHub 的 windows
+// runner 默认就是）检出来是 CRLF，按 `\n` 切行后每行尾都挂一个 `\r` ——
+// 标题、触发词、正文全被污染，触发词永远匹配不上，**世界书整条静默失效**。
+//
+// 这两条在 Linux 上也会跑（不依赖检出成什么行尾），所以以后回归不会漏。
+
+test('行尾：CRLF / CR 输入必须与 LF 解析出完全相同的结果', () => {
+  const lf = parseWorldbookText(SAMPLE, 'eol-probe.md');
+  assert.ok(lf.length > 0, '样例本身要能解析出条目');
+
+  for (const [label, text] of [
+    ['CRLF', SAMPLE.replace(/\n/g, '\r\n')],
+    ['CR', SAMPLE.replace(/\n/g, '\r')],
+  ]) {
+    assert.deepEqual(
+      parseWorldbookText(text, 'eol-probe.md'),
+      lf,
+      `${label} 输入解析结果与 LF 不一致 —— 条目字段里混进了 \\r`,
+    );
+  }
+});
+
+test('行尾：解析结果里不得残留任何 \\r', () => {
+  // deepEqual 只比对"有没有差别"，这条直接盯污染本身，报错时能点出是哪个字段。
+  const entries = parseWorldbookText(SAMPLE.replace(/\n/g, '\r\n'), 'eol-probe.md');
+  const found = [];
+  const walk = (value, path) => {
+    if (typeof value === 'string') {
+      if (value.includes('\r')) found.push(path);
+    } else if (Array.isArray(value)) {
+      value.forEach((item, i) => walk(item, `${path}[${i}]`));
+    } else if (value && typeof value === 'object') {
+      for (const [k, v] of Object.entries(value)) walk(v, `${path}.${k}`);
+    }
+  };
+  entries.forEach((entry, i) => walk(entry, `entries[${i}]`));
+  assert.deepEqual(found, [], `这些字段残留了 \\r：${found.join(', ')}`);
+});
+
+test('真实数据：整份数据转成 CRLF 后与 LF 逐字一致', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, () => {
+  // 上一条用的是最小样例；这条拿随包的那 61 条真数据再跑一遍 ——
+  // 它就是 Windows 检出在真实环境里的样子。
+  const docs = readdirSync(REAL_DIR)
+    .filter((name) => name.endsWith('.md'))
+    .sort()
+    .map((name) => ({ name, text: readFileSync(`${REAL_DIR}/${name}`, 'utf8') }));
+  const asCrlf = docs.map((doc) => ({
+    name: doc.name,
+    text: doc.text.replace(/\r\n?/g, '\n').replace(/\n/g, '\r\n'),
+  }));
+
+  const lf = parseWorldbookDocs(docs);
+  const crlf = parseWorldbookDocs(asCrlf);
+  assert.ok(lf.length >= 60, `应解析出 60+ 条，实际 ${lf.length}`);
+  assert.deepEqual(crlf, lf, 'CRLF 检出下解析结果与 LF 不一致 —— 世界书在 Windows 上会整体失效');
 });

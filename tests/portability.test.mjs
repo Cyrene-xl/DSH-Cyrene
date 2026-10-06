@@ -98,8 +98,13 @@ test('可移植性：.gitattributes 的行尾规则与仓库现状一致', () =>
   const text = readFileSync(ga, 'utf8');
   assert.match(text, /\*\.sh[^\n]*eol=lf/, '*.sh 必须锁 eol=lf');
 
+  // 默认行尾必须是 LF。这条是 CI 的 windows job 抓到世界书 CRLF 事故后加的：
+  // 检出成 CRLF 会让 .md 里的每个字段尾部挂上 `\r`。
+  const blanket = /^\*\s+text=auto\s+eol=lf\s*$/m.exec(text);
+  assert.ok(blanket, '缺少 `* text=auto eol=lf` —— 别把整仓默认行尾让给平台的 core.autocrlf');
+
   // 仓库里已经没有 Windows 脚本了（install.ps1 / .bat 已删除，原因见 README）。
-  // 所以下面两条改成**条件式**：现在没有 .ps1/.bat → 跳过；将来加回来 → 立刻生效。
+  // 所以下面几条改成**条件式**：现在没有 .ps1/.bat → 跳过；将来加回来 → 立刻生效。
   const winScripts = collect(join(repoRoot, 'scripts'), ['.ps1', '.bat', '.cmd']);
   if (winScripts.length === 0) return;
   // 有 Windows 脚本就必须让 **blob 本身**是 CRLF：用 `-text`，不是 `text eol=crlf`
@@ -107,6 +112,15 @@ test('可移植性：.gitattributes 的行尾规则与仓库现状一致', () =>
   assert.match(text, /\*\.ps1[^\n]*-text/, '*.ps1 必须是 -text（blob 里就得是 CRLF）');
   assert.match(text, /\*\.bat[^\n]*-text/, '*.bat 必须是 -text');
   assert.doesNotMatch(text, /^\*\.ps1[^\n]*eol=crlf/m, '*.ps1 不该用 eol=crlf —— 那修不了 blob');
+
+  // gitattributes **以最后一条匹配的规则为准**，所以 `-text` 必须写在默认行尾之后，
+  // 否则会被 `* text=auto eol=lf` 盖掉 —— 而且盖掉之后毫无声息，只有真机才会发现。
+  const ps1Rule = text.split('\n').findIndex((l) => /^\*\.ps1[^\n]*-text/.test(l));
+  const blanketLine = text.split('\n').findIndex((l) => /^\*\s+text=auto\s+eol=lf/.test(l));
+  assert.ok(
+    ps1Rule > blanketLine,
+    '`*.ps1 -text` 必须排在 `* text=auto eol=lf` 之后 —— 最后匹配的规则才生效',
+  );
 });
 
 test('可移植性：若存在 .ps1，则不得含 PowerShell 5.1 会失步的写法', () => {

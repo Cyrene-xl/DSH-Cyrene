@@ -161,6 +161,23 @@ test('注入：超长记忆按行截断并说明', () => {
   assert.ok(text.length < 2400, `注入长度应受限，实际 ${text.length}`);
 });
 
+// 行尾：记忆文件是给人看、也可能被人手改的 —— Windows 编辑器会写成 CRLF。
+// 不归一的话读进来的每行都带 `\r`，注入里会多出不可见字符、forget 还会把它写回去。
+test('行尾：CRLF 的记忆文件不该把 \\r 带进注入或写回', () => {
+  const { inject, forget } = boot();
+  seed('# 关于对方\r\n\r\n- 对方的手机是华为\r\n- 我在做 Cyrene 插件\r\n');
+
+  const text = inject();
+  assert.ok(!text.includes('\r'), '注入文本里不该出现 \\r');
+  assert.ok(text.includes('- 对方的手机是华为'), '条目内容应完好');
+
+  forget('华为');
+  const after = readFileSync(STORE, 'utf8');
+  assert.ok(!after.includes('\r'), '写回的文件应被归一成 LF');
+  assert.ok(!after.includes('- 对方的手机是华为'), '命中关键词的条目应被删掉');
+  assert.ok(after.includes('- 我在做 Cyrene 插件'), '另一条必须保留');
+});
+
 // 收尾：本文件只碰临时目录，删掉即可。
 test('清理临时目录', () => {
   assert.ok(existsSync(HOME));

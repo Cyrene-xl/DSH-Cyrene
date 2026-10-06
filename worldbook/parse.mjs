@@ -19,6 +19,20 @@
  *   被误当成字段（现有数据里 characters.md 的正文就有 `- **迷迷**：……`）。
  * - 字段名同时接受半角 `:` 和全角 `：`（上游解析器也是这么容错的）。
  * - 「无」视为空列表。
+ * - **CRLF 与 CR 行尾一律当 LF 处理**（见下）。
+ *
+ * ## 为什么要吞 CRLF
+ *
+ * 世界书是 `.md`。Windows 上 `core.autocrlf=true`（GitHub 的 windows runner 默认就是）
+ * 检出来是 CRLF，于是按 `\n` 切行后**每一行尾部都挂一个 `\r`**：
+ *
+ * - 标题变成 `翁法罗斯之心 / PHILIA093\r`，`names` 与触发词全带 `\r`；
+ * - 触发词永远匹配不上（用户消息里没有 `\r`），世界书**整条静默失效**；
+ * - 注入块照常"注入"，只是内容是错的 —— 不报错，只是人设记忆全丢。
+ *
+ * 这是 CI 加了 `windows-latest` 之后抓到的真 bug（7 条测试同时红）。修在解析层而不是
+ * 只靠 `.gitattributes`：用户自己的世界书文件、zip 下载、在 Windows 上手改过的
+ * 数据都会是 CRLF，解析层不能假设行尾。
  */
 import { readFileSync, readdirSync } from 'node:fs';
 
@@ -153,7 +167,9 @@ function parseBlock(block, source, index, startLine) {
  * @returns 条目数组；没有条目时为空数组。
  */
 export function parseWorldbookText(text, source = 'inline') {
-  const lines = String(text ?? '').split('\n');
+  // 先归一行尾：CRLF / 单独 CR 都变成 LF。不做这步的话 Windows 检出会整份失效，
+  // 见文件头「为什么要吞 CRLF」。
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
   const heads = [];
   lines.forEach((line, i) => {
     if (/^##\s+\S/.test(line)) heads.push(i);

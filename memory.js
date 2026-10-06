@@ -76,10 +76,13 @@ function sanitize(text, { keepNewlines = false } = {}) {
   return out.trim();
 }
 
-/** 读记忆文件；不存在或读不了都当空。 */
+/** 读记忆文件；不存在或读不了都当空。行尾一律归一成 LF（见下）。 */
 function readStore() {
   try {
-    return existsSync(STORE) ? readFileSync(STORE, 'utf8') : '';
+    // 这个文件是给人看的，也就可能被人手改：Windows 上的编辑器会写成 CRLF，
+    // 于是 `split('\n')` 出来的每一行都挂一个 `\r`，最后又原样写回文件。
+    // 在唯一的读入口处归一，下游（注入 / forget / 计数）就都不用各自防一遍。
+    return existsSync(STORE) ? readFileSync(STORE, 'utf8').replace(/\r\n?/g, '\n') : '';
   } catch {
     return '';
   }
