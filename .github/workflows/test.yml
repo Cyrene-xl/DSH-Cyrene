@@ -64,16 +64,41 @@ jobs:
       # 坑：入口判断曾写成 `import.meta.url === \`file://${process.argv[1]}\`` ——
       # 在 Windows 上永不成立（argv[1] 是 C:\...，而 import.meta.url 是 file:///C:/...），
       # 后果是 **exit 0、零输出、零报错**。只断言退出码是抓不到的，必须断言"真的吐了东西"。
+      #
+      # 写法上刻意**落盘再断言**，不用 `echo "$out" | grep -q ...`：
+      # grep -q 命中第一行就退出，写入端会拿到 EPIPE，而 `set -o pipefail` 会把整条
+      # 管道判为失败 —— 输出越大越容易踩（Linux 上缓冲区够大时侥幸不挂）。
+      # 失败的诊断信息也一并留在日志里，不用再靠猜。
       - name: 声明导出必须真的有输出（Windows 上曾静默零输出）
         shell: bash
         run: |
           set -euo pipefail
-          out="$(node scripts/export-preset-declarations.mjs)"
-          if [ -z "$out" ]; then echo "✗ 生成器输出为空 —— 入口判断在 Windows 上没触发"; exit 1; fi
-          echo "$out" | grep -q '^- insert:$' || { echo "✗ 输出缺少 - insert: 包装"; exit 1; }
+          set +e
+          node scripts/export-preset-declarations.mjs > decl.yml
+          rc=$?
+          set -e
+          echo "生成器退出码 = $rc，字节数 = $(wc -c < decl.yml)，行数 = $(wc -l < decl.yml)"
+          if [ "$rc" -ne 0 ]; then
+            echo "✗ 生成器退出码非 0（入口判断或 main() 在 Windows 上出错了）"
+            head -3 decl.yml | od -c | head -5
+            exit 1
+          fi
+          if [ ! -s decl.yml ]; then
+            echo "✗ 生成器输出为零字节 —— 入口判断在 Windows 上没触发"
+            exit 1
+          fi
+          if ! grep -q '^- insert:$' decl.yml; then
+            echo "✗ 输出缺少 - insert: 包装。头三行（od 显示行尾符）："
+            head -3 decl.yml | od -c | head -5
+            exit 1
+          fi
           # 单个预设也要能出：CLI 参数那条路同样要过
-          node scripts/export-preset-declarations.mjs cyrene-work > /dev/null
-          echo "✓ 生成器在 Windows 上正常产出（$(printf '%s' "$out" | wc -l) 行）"
+          node scripts/export-preset-declarations.mjs cyrene-work > one.yml
+          if [ ! -s one.yml ] || ! grep -q '^- insert:$' one.yml; then
+            echo "✗ 带参数的 CLI 那条路产出不对"
+            exit 1
+          fi
+          echo "✓ 生成器在 Windows 上正常产出（$(wc -l < decl.yml) 行 / 单预设 $(wc -l < one.yml) 行）"
 
       # 坑：Windows 路径、盘符、DSH_HOME 的写法。用临时 DSH_HOME 试装，
       # 跑通 安装 → 幂等复跑 → 卸载 三条。绝不能用真实 ~/.dsh。
@@ -87,7 +112,9 @@ jobs:
           node scripts/install.mjs
           [ -f "$DSH_HOME/.agent-presets/chat/agent.cordis.yml" ] || { echo "✗ chat 预设没装上"; exit 1; }
           [ -f "$DSH_HOME/.agent-presets/cyrene-work/agent.cordis.yml" ] || { echo "✗ cyrene-work 预设没装上"; exit 1; }
-          node scripts/install.mjs | grep -q "已是最新" || { echo "✗ 复跑没有报「已是最新」（幂等性坏了）"; exit 1; }
+          # 同样落盘再查，不接管道（理由见上一步）
+          node scripts/install.mjs > rerun.log
+          grep -q "已是最新" rerun.log || { echo "✗ 复跑没有报「已是最新」（幂等性坏了）"; cat rerun.log; exit 1; }
           node scripts/install.mjs --uninstall
           [ ! -e "$DSH_HOME/.agent-presets/chat" ] || { echo "✗ 卸载没清掉"; exit 1; }
           echo "✓ 安装 / 幂等 / 卸载 三条都过"
