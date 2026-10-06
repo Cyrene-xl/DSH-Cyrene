@@ -22,7 +22,7 @@ PowerShell、也没有 macOS。所以：
 ## 提交前**必须**做什么
 
 ```bash
-npm test              # 全部单元测试（当前 68 条）
+npm test              # 全部单元测试（当前 72 条）
 npm run harness:check # 全部运行时代码的语法检查
 ```
 
