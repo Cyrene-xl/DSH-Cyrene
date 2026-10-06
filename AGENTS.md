@@ -90,40 +90,24 @@ npm run harness:check # 全部运行时代码的语法检查
 | `scripts/export-preset-declarations.mjs` | ✅ 已验 | 往返比对：解析生成结果，`insert[0].config.plugins` 与源组合深度相等；且断言 patch 顶层只允许出现 `- insert:` |
 | ~~`scripts/install.ps1` / `install.bat`~~ | **已删除** | 作者没有自己的电脑，项目是在 DSH App（Android）里做的 —— 那两个脚本**无法实测**，靠用户反馈连试三轮仍未跑通。与其留一条没人能验证的路，不如删掉。详见下面「Windows 已知坑」 |
 
-> ### Windows 脚本已移除，但坑记在这儿
+> ### Windows：脚本已移除，细节见专项文档
 >
-> `scripts/install.ps1` 与 `install.bat` **已经删掉**。原因写在 README 里：
-> 作者没有自己的电脑，项目是在 DSH App（Android）上做的，没有 Windows 也没有
-> PowerShell —— 那两个脚本无法实测，靠用户反馈连试三轮仍未跑通。
-> Windows 用户改走 `node scripts/install.mjs`。
+> `scripts/install.ps1` 与 `install.bat` **已经删掉**，Windows 用户改走
+> `node scripts/install.mjs`。原因与那三轮真实反馈换来的**五条坑**，
+> 全部写在 **[`docs/windows.md`](./docs/windows.md)** —— 一份文档，一处维护，
+> 不要在这里再抄一遍。
 >
-> **下面是那三轮真实反馈换来的坑，将来若恢复 Windows 脚本，请先逐条读完。**
-> 全部来自实测，不是推测：
+> 只在这里留两条最容易忘的：
 >
-> 1. **行尾必须是 CRLF —— 而且必须是 *blob* 里的 CRLF。** 这里是连续两轮才想明白的：
->    第一轮用 `*.ps1 text eol=crlf`，只做到"**检出时**转 CRLF"，**blob 里存的仍是 LF**。
->    于是 `git pull` 过的人（内容未变的文件不会重新检出）和用 raw / jsDelivr 下载的人
->    拿到的还是 LF。反馈者量了 blob 的 SHA256 才发现。要用 `-text` —— 不让 Git
->    做任何转换，**工作区是什么就存什么**，谁拿到都是 CRLF。
->    （代价：这几类文件在 Git 里按二进制看待、diff 不再逐行。）
-> 2. **管道不要跨行写。** 5.1 对"行尾悬空 `|`"的处理不可靠。
-> 3. **不要用 here-string（`@" ... "@`）。** 5.1 对它的终止符极挑（必须独占一行且在列 0），
->    遇上 LF 行尾直接解析失败。改用字符串拼接。
-> 4. **不要把 `if` 当表达式赋值**（`$x = if (...) { } else { }`）—— 那是 PowerShell 7 的写法。
->    5.1 上会让**解析器失步**：报错位置漂到后面几十行的某个 `}` 上，看起来跟肇事那行毫无
->    关系（真实反馈报在 L60/L62/L65/L72，查了很久）。先声明、再 if/else 分开写。
-> 5. **入口判断不能用 `` `file://${process.argv[1]}` ``。** 在 Windows 上永不成立
->    （`process.argv[1]` 是 `C:\...`，`import.meta.url` 是 `file:///C:/...`），后果是
->    `main()` 从不执行：**exit 0、零输出、零报错**。必须用 `pathToFileURL(process.argv[1]).href`。
+> - **`-text` 而不是 `text eol=crlf`。** 后者只转检出，**blob 里仍是 LF**，
+>   `git pull` 过的人和 raw 下载的人拿不到修复。
+> - **跨平台脚本的入口判断必须用 `pathToFileURL(process.argv[1]).href`。**
+>   写成 `` `file://${process.argv[1]}` `` 在 Windows 上永不成立，后果是
+>   **exit 0、零输出、零报错**。
 >
-> 这些**都只能靠真实 Windows 暴露** —— 开发机上 `node --check`、`npm test`、人工审查
-> 全都看不出来。所以 `tests/portability.test.mjs` 把它们写成**静态断言**：入口判断、
-> POSIX 脚本行尾，以及"**若**仓库里出现 `.ps1`/`.bat` 就必须满足的几条规则"
-> （现在没有这类文件，那几条自动跳过；将来加回来就会立刻生效）。
->
-> 📌 **将来恢复 Windows 脚本的正确姿势**：先在有 Windows 的机器上把
-> `install.ps1` 真跑通、确认五条坑都避开，**再**提交 —— 不要凭着"看着没问题"就发。
-> 这个仓库在这一件事上已经浪费了三轮。
+> 📌 将来若要恢复 Windows 脚本：**先在一台有 Windows 的机器上真跑通，再提交**。
+> `tests/portability.test.mjs` 里那几条 `.ps1` 断言是条件式的 —— 现在跳过，
+> 文件一加回来立刻生效。这个仓库在这一件事上已经浪费了三轮。
 
 > **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
 > standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏

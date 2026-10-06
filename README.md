@@ -118,7 +118,8 @@ node scripts/install.mjs
 >
 > **要是它在你的 Windows 上不适配**：那大概率得等我以后有了自己的电脑，
 > 才能把那部分补回来重做一遍。在那之前上面这条 `install.mjs` 就是 Windows 的路。
-> 细节（含哪些验过、哪些没验过）见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
+> **完整的 Windows 说明（怎么装、五条实测坑、将来怎么恢复 PS 脚本）见
+> [`docs/windows.md`](./docs/windows.md)。**
 
 脚本会把 `preset/` 下的**每个子目录**装成对应的预设：
 `preset/chat/` → `~/.dsh/.agent-presets/chat/`，
@@ -391,7 +392,8 @@ dsh-cyrene/
 │   ├── writing-your-preset.md   怎么写自己的人设
 │   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
 │   ├── host-side.md             宿主半体与会话级插件
-│   └── pitfalls.md              三个只能踩出来的 DSH 行为（动手前必读）
+│   ├── pitfalls.md              三个只能踩出来的 DSH 行为（动手前必读）
+│   └── windows.md               Windows 怎么装 + 五条实测坑 + 为什么没有 ps1
 ├── AGENTS.md                上面那份的要点版，给在此仓库工作的 agent 用
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
