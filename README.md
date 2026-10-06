@@ -370,6 +370,7 @@ dsh plugin --profile <你的 profile> add <插件名>
 
 ```
 dsh-cyrene/
+├── .github/workflows/test.yml  CI：Ubuntu Node 22/24 + 真实 windows-latest
 ├── index.js                 宿主半体锚点（刻意不做任何运行时改动）
 ├── memory.js                会话级插件：长期记忆变量 + remember / forget 工具
 ├── nickname.js              会话级插件：称呼变量 {{user_nickname}}
@@ -406,6 +407,7 @@ dsh-cyrene/
 │   ├── pitfalls.md              三个只能踩出来的 DSH 行为（动手前必读）
 │   └── windows.md               Windows 怎么装 + 五条实测坑 + 为什么没有 ps1
 ├── AGENTS.md                上面那份的要点版，给在此仓库工作的 agent 用
+├── CONTRIBUTING.md          维护边界 + 提交前的硬规则（想改代码先读这份）
 ├── THIRD_PARTY_NOTICES.md   授权与 IP 声明
 └── LICENSE                   MIT
 ```
@@ -437,12 +439,32 @@ dsh-cyrene/
 ## 开发与测试
 
 ```bash
-npm test              # 单元测试（59 条）
+npm test              # 单元测试（当前 68 条）
 npm run harness:check # 语法检查：对所有运行时代码做 node --check
 ```
 
 **不需要 `npm install`** —— 运行时代码与测试都只用 Node 内置模块，没有依赖，所以也没有 lockfile。
 Node ≥ 22 即可。
+
+CI（`.github/workflows/test.yml`）在两个平台上跑：`ubuntu-latest` 的 Node 22/24 矩阵，
+以及一个 **`windows-latest`** job —— 后者专门补作者本地覆盖不到的那块（见下）。
+
+## 维护边界
+
+**作者能验证的环境只有一种：DSH App（Android）。** 没有自己的电脑，整套东西都是在
+DSH App 里做的 —— 本地没有 Windows、没有 PowerShell、也没有 macOS。
+
+| 范围 | 谁维护 |
+| --- | --- |
+| 插件本体、两套预设、世界书、记忆、`install.sh` / `install.mjs` | 作者 |
+| **桌面端（Windows / macOS / Linux）的各种差异** | **社区** —— 欢迎 PR |
+| DSH 各版本之间的行为差异（0.1.x ↔ 0.2.0+） | 作者尽力跟进，但需要你反馈实测结果 |
+
+这不代表拒绝桌面端：`install.mjs` 跨平台，CI 也**在真实 Windows 上跑测试**。
+只是"声称支持"和"验证过"是两件事，这里不想混为一谈。
+
+想参与的话请先读 [`CONTRIBUTING.md`](./CONTRIBUTING.md)（含"平台相关改动必须先真机跑通"
+这条硬规则）；已知的桌面端坑在 [`docs/windows.md`](./docs/windows.md)。
 
 ⚠️ **不要写 `node --test tests/`**（带尾斜杠）—— Node 会把目录当模块解析，报
 `MODULE_NOT_FOUND`。要用 `npm test`，或 `node --test "tests/*.mjs"`。

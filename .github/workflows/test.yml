@@ -29,3 +29,65 @@ jobs:
 
       - name: 单元测试
         run: npm test
+
+  # ── Windows ────────────────────────────────────────────────────────────────
+  #
+  # 这个 job 存在的唯一理由：**作者没有自己的电脑，整套东西是在 DSH App（Android）
+  # 里做的** —— 本地没有 Windows 也没有 PowerShell，所有"只在 Windows 上才暴露"
+  # 的问题都只能靠用户反馈来回试，连试三轮。
+  #
+  # windows-latest 对公开仓库免费。也就是说：**不需要有电脑，就能在真实 Windows 上
+  # 自动跑测试。** 这一步是替掉"交给别人改"的 —— 别人不用来改，CI 会先告诉我们
+  # 错在哪，而且以后任何跨平台回归都会在 PR 上直接红掉。
+  #
+  # 每一步都对应一个真实踩过的坑，不是凑数的。见 docs/windows.md。
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 用 bash（runner 自带 Git Bash）而不是 pwsh：要验的是 **Node 脚本在 Windows
+      # 上的行为**（盘符、路径分隔符、入口判断），不是 PowerShell 语法。用 bash 还能
+      # 与上面的 ubuntu job 保持同一套写法。
+      - name: 语法检查
+        shell: bash
+        run: npm run harness:check
+
+      - name: 单元测试
+        shell: bash
+        run: npm test
+
+      # 坑：入口判断曾写成 `import.meta.url === \`file://${process.argv[1]}\`` ——
+      # 在 Windows 上永不成立（argv[1] 是 C:\...，而 import.meta.url 是 file:///C:/...），
+      # 后果是 **exit 0、零输出、零报错**。只断言退出码是抓不到的，必须断言"真的吐了东西"。
+      - name: 声明导出必须真的有输出（Windows 上曾静默零输出）
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(node scripts/export-preset-declarations.mjs)"
+          if [ -z "$out" ]; then echo "✗ 生成器输出为空 —— 入口判断在 Windows 上没触发"; exit 1; fi
+          echo "$out" | grep -q '^- insert:$' || { echo "✗ 输出缺少 - insert: 包装"; exit 1; }
+          # 单个预设也要能出：CLI 参数那条路同样要过
+          node scripts/export-preset-declarations.mjs cyrene-work > /dev/null
+          echo "✓ 生成器在 Windows 上正常产出（$(printf '%s' "$out" | wc -l) 行）"
+
+      # 坑：Windows 路径、盘符、DSH_HOME 的写法。用临时 DSH_HOME 试装，
+      # 跑通 安装 → 幂等复跑 → 卸载 三条。绝不能用真实 ~/.dsh。
+      - name: install.mjs 在 Windows 上试装（临时 DSH_HOME）
+        shell: bash
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-ci
+        run: |
+          set -euo pipefail
+          echo "DSH_HOME=$DSH_HOME"
+          node scripts/install.mjs
+          [ -f "$DSH_HOME/.agent-presets/chat/agent.cordis.yml" ] || { echo "✗ chat 预设没装上"; exit 1; }
+          [ -f "$DSH_HOME/.agent-presets/cyrene-work/agent.cordis.yml" ] || { echo "✗ cyrene-work 预设没装上"; exit 1; }
+          node scripts/install.mjs | grep -q "已是最新" || { echo "✗ 复跑没有报「已是最新」（幂等性坏了）"; exit 1; }
+          node scripts/install.mjs --uninstall
+          [ ! -e "$DSH_HOME/.agent-presets/chat" ] || { echo "✗ 卸载没清掉"; exit 1; }
+          echo "✓ 安装 / 幂等 / 卸载 三条都过"
