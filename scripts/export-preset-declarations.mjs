@@ -27,8 +27,10 @@
  *   node scripts/export-preset-declarations.mjs              # 全部预设 → stdout
  *   node scripts/export-preset-declarations.mjs cyrene-work  # 只要一个
  *
- * 输出的片段贴到 `<DSH_HOME>/profiles/<profile>/cordis.patch.yml`（顶层是数组），
- * 或者按 0.2.0 文档的路子做成 bundle 补丁再用 `dsh plugin add` 装进 profile。
+ * 输出的片段贴到 `<DSH_HOME>/profiles/<profile>/cordis.patch.yml`：那个文件顶层是数组，
+ * 把输出**作为一个新元素追加进去**（输出**自带 `- insert:` 那一层，别去掉** ——
+ * 理由见下面 declarationFor 里的注释），或者按 0.2.0 文档的路子做成 bundle 补丁
+ * 再用 `dsh plugin add` 装进 profile。
  */
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -62,26 +64,41 @@ export function declarationFor(id) {
   const description = metaField(meta, 'description');
   const order = metaField(meta, 'order');
 
-  // 组合整体缩进 6 格后嵌进 `plugins:` —— 逐行平移，块标量的相对缩进不变，
+  // 组合整体嵌进 `plugins:` —— 逐行平移，块标量的相对缩进不变，
   // 所以 `prefix: |` 里的正文不会被破坏。
+  //
+  // 缩进层级：patch 数组 → `- insert:`（0）→ 行（4）→ config（6）→ plugins（8）→ 组合（10）
   const indented = readFileSync(compositionPath, 'utf8')
     .replace(/\r\n/g, '\n')
     .replace(/\s+$/, '')
     .split('\n')
-    .map((line) => (line.trim() === '' ? '' : '      ' + line))
+    .map((line) => (line.trim() === '' ? '' : ' '.repeat(10) + line))
     .join('\n');
 
+  // ⚠️ 必须套 `- insert:`，不能把声明行裸着放进 patch 数组。
+  //
+  // dsh-app-boot 应用 patch 时是这个顺序（见其 lib/index.js）：
+  //
+  //   if (insert) { … data.push(...insert); continue; }        // ← 插入
+  //   if (!id) { warn('patch: id is required for non-insert patches'); continue; }
+  //   const target = entryMap.get(id);
+  //   if (!target) { warn("patch: entry %C not found"); continue; }  // ← 裸行走到这里
+  //
+  // 也就是说裸的 `- id: preset-x` 会被当成"**按 id 覆盖一个已有条目**"，
+  // 而那个 id 当然不存在 → 被跳过。**看起来像"追加成功了"，实际什么都没发生**
+  // —— 跟本仓库踩过的 install.mjs 那个坑是同一类静默失效。
   const head = [
     `# ── ${name || id}（id: ${id}）${'─'.repeat(Math.max(0, 40 - id.length))}`,
-    '- id: preset-' + id,
-    "  name: '@deepseek-ai/dsh-agent-preset'",
-    '  config:',
-    '    id: ' + quote(id),
+    '- insert:',
+    '    - id: preset-' + id,
+    "      name: '@deepseek-ai/dsh-agent-preset'",
+    '      config:',
+    '        id: ' + quote(id),
   ];
-  if (name !== '') head.push('    name: ' + quote(name));
-  if (description !== '') head.push('    description: ' + quote(description));
-  if (order !== '') head.push('    order: ' + order);
-  head.push('    plugins:');
+  if (name !== '') head.push('        name: ' + quote(name));
+  if (description !== '') head.push('        description: ' + quote(description));
+  if (order !== '') head.push('        order: ' + order);
+  head.push('        plugins:');
 
   return head.join('\n') + '\n' + indented + '\n';
 }

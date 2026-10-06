@@ -137,8 +137,13 @@ node scripts/install.mjs
 > node scripts/export-preset-declarations.mjs --out=preset-declarations.yml
 > ```
 >
-> 生成的内容贴进 `<DSH_HOME>/profiles/<你的 profile>/cordis.patch.yml`
-> （该文件顶层是一个数组，把内容追加进数组即可）。
+> 生成的内容贴进 `<DSH_HOME>/profiles/<你的 profile>/cordis.patch.yml`。
+> 那个文件顶层是一个数组，把生成的内容**作为一个新元素追加进去**即可。
+>
+> ⚠️ 生成的内容**自带 `- insert:` 那一层，别把它去掉**。patch 数组里的条目分两种：
+> 带 `insert` 的是"插入新行"，不带 `insert` 而带 `id` 的是"**按 id 覆盖一个已有条目**"。
+> 少了 `insert`，我们的声明会被当成后者 —— 而那个 preset id 并不存在，于是被
+> **静默跳过**：文件看着改了，模式却不会出现，且没有任何报错。
 >
 > **怎么判断自己是哪一代？** 界面里模式选择器没出现本项目的两个模式、
 > 但目录确实装好了 —— 那就是 0.2.0+，用上面的声明方式。

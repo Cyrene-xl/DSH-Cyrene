@@ -163,9 +163,10 @@ async function main() {
   console.log('   0.2.0 起改用声明式注册表，它不扫描 ~/.dsh/.agent-presets/。');
   console.log('   请改用声明方式：');
   console.log('     node scripts/export-preset-declarations.mjs --out=preset-declarations.yml');
-  console.log('   然后把生成的内容贴进你的 profile 补丁：');
+  console.log('   然后把生成的内容**作为一个新元素**追加进你的 profile 补丁：');
   console.log(`     ${join(dshHome, 'profiles', '<你的 profile>', 'cordis.patch.yml')}`);
-  console.log('   （该文件顶层是一个数组，把内容追加进数组即可。）');
+  console.log('   ⚠️ 生成的内容自带 `- insert:` 那一层，别去掉：patch 里不带 insert 而带 id');
+  console.log('      的条目是"按 id 覆盖已有条目"，少了 insert 我们的声明会被静默跳过。');
   console.log('   0.1.x 用户忽略这段 —— 目录方式在那一代是对的。');
 }
 

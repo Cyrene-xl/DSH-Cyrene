@@ -156,9 +156,28 @@ test('声明导出：0.2.0 的声明里 plugins 必须与原组合逐字相等',
 
   for (const id of PRESETS) {
     const out = execFileSync(process.execPath, [generator, id], { encoding: 'utf8' });
-    // 生成结果 = 声明头（若干行）+ `    plugins:` + 整体缩进 6 格的组合正文。
-    // 所以起点要认 **`plugins:` 之后**那一行，不能找第一个 `- id:` ——
-    // 第一个 `- id:` 是声明自身（缩进 0），照它反缩进等于没缩进（这个坑踩过）。
+
+    // ① 必须是合法的 **patch** 形态：顶层套 `- insert:`。
+    //
+    // 少了这层，声明行就变成"按 id 覆盖已有条目"（见 dsh-app-boot 的 patch 应用逻辑：
+    // `if (insert) {...continue}` 之后才轮到 `entryMap.get(id)`），而那个 id 当然不存在
+    // → 被跳过。表现是"看起来追加成功了，实际什么都没发生"。
+    // 所以下面两条断言盯的就是这个：顶层不能出现裸 `id:` / 裸 `name:`。
+    assert.match(out, /^- insert:$/m, `${id} 的输出必须含顶格的 - insert:`);
+    const topLevel = out.split('\n').filter((l) => !l.startsWith(' ') && l.trim() !== '' && !l.startsWith('#'));
+    for (const line of topLevel) {
+      assert.equal(
+        line,
+        '- insert:',
+        `${id} 的 patch 顶层只允许出现 "- insert:"，却出现了：${line}\n`
+          + '→ 裸的声明行会被当成"按 id 覆盖已有条目"而被静默跳过。',
+      );
+    }
+
+    // ② 组合正文必须与源逐字一致（反缩进后比对）。
+    // 生成结果 = 注释 + `- insert:` + 声明头 + `        plugins:` + 缩进 10 格的组合。
+    // 所以起点要认 **`plugins:` 之后**那一行 —— 不能找第一个 `- id:`：
+    // 第一个 `- id:` 是声明自身（更深缩进），照它反缩进会得到错的结果（这个坑踩过）。
     const dedent = (text) => {
       const lines = text.replace(/\r\n/g, '\n').split('\n');
       const marker = lines.findIndex((l) => l.trim() === 'plugins:');
