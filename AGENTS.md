@@ -61,8 +61,21 @@ npm run harness:check # 全部运行时代码的语法检查
 | `preset/cyrene-work/` 的**工具行与内置 standard 的同步性** | ✅ 已验（**装了 DSH 才跑**） | `tests/preset.test.mjs` 的漂移护栏：断言比 standard 少 0 行、多出的只允许 `cyrene-memory` / `dsh-cyrene-worldbook`。CI 上没有 DSH，该文件整体跳过 |
 | `scripts/install.sh` | ✅ 已验 | 用**临时 `DSH_HOME`** 实跑：安装 → 幂等复跑报"已是最新" → `--uninstall` |
 | `scripts/install.mjs` | ✅ 已验 | 同上（安装 / 幂等 / 卸载三条都跑过） |
-| `scripts/install.ps1` | ⚠️ **未验** | 开发环境没有 PowerShell，**只做了人工审查，没跑过一次** |
+| `scripts/install.ps1` | ⚠️ **未验（开发机无 PowerShell）** | 只在开发机人工审查过。**已收到一次真实 Windows 反馈**：LF 行尾 + 多行管道 → PowerShell 5.1 报 `unexpected token ')'`。已修（见下）；但修完**仍未在真实 Windows 上复跑** |
 | `scripts/install.bat` | ⚠️ **未验** | 同上（它只是转调 `.ps1`） |
+
+> **Windows 两条路径的已知坑（来自真实反馈，不是推测）：**
+>
+> 1. **行尾必须是 CRLF。** 开发机是 Linux，默认 LF；而 PowerShell 5.1 解析 LF 行尾的
+>    脚本会出问题。仓库根目录的 `.gitattributes` 现在把 `*.ps1` / `*.bat` / `*.cmd`
+>    锁成 `eol=crlf`（同时把 `*.sh` 锁成 `eol=lf`）—— **别把那几行删掉**，删了就等于
+>    让 Windows 用户重新踩一遍。
+> 2. **管道不要跨行写。** 5.1 对"行尾悬空 `|`"的处理不可靠，原本自动发现预设的那条
+>    管道写了三行，实测直接语法报错。现在压成一行，并在原处留了注释。
+>
+> 这两条都**只能靠真实 Windows 暴露** —— 开发机上 `node --check` 和人工审查都看不出来。
+> 有条件的话请务必在真机上跑一次 `install.ps1`，然后把上面对应的"未验"改成"已验"。
+
 
 > **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
 > standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏

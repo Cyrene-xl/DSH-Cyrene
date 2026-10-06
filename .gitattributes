@@ -1,0 +1,17 @@
+# 行尾符：只锁**由各自平台原生执行**的脚本，不动其它文件。
+#
+# 起因是一次真实反馈：scripts/install.ps1 在开发机上是 LF（Linux 默认），Git 也按 LF 存，
+# 于是在真实 Windows 上 PowerShell 5.1 解析它直接报 `unexpected token ')'`。
+# README 里早就写明"Windows 两条路径未在真实机器上跑过"，这条反馈正好撞上那个缺口。
+#
+# ⚠️ 故意**不**给 *.md / *.yml / *.mjs / *.json 之类加 `text`：
+#    那会把仓库里所有文件的既有行尾统一重写一遍，产生几百行纯行尾 churn，
+#    和"修脚本行尾"这件事无关。真要统一重写，单独提交、单独说明。
+
+# Windows 原生执行 —— 必须 CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# POSIX 原生执行 —— 必须 LF（否则在 Windows 上被转成 CRLF 后，Linux/macOS 上跑不了）
+*.sh text eol=lf

@@ -27,9 +27,12 @@ if (-not (Test-Path $SrcRoot)) {
 }
 
 # 自动发现：每个含 agent.cordis.yml 的子目录就是一个预设。
-$PresetIds = @(Get-ChildItem -Path $SrcRoot -Directory |
-    Where-Object { Test-Path (Join-Path $_.FullName 'agent.cordis.yml') } |
-    Sort-Object Name | ForEach-Object { $_.Name })
+#
+# ⚠️ 整条管道**必须写在一行**。原本是跨三行的（行尾 `|`），在真实的
+#    Windows PowerShell 5.1 上直接语法报错（unexpected token ')'）——
+#    5.1 对行尾悬空管道的处理不可靠。这是实测反馈，不是推测。
+#    改回多行之前请先在 5.1 上跑一遍。
+$PresetIds = @(Get-ChildItem -Path $SrcRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'agent.cordis.yml') } | Sort-Object Name | ForEach-Object { $_.Name })
 
 if ($PresetIds.Count -eq 0) {
     Write-Error "错误：$SrcRoot 下没有找到任何预设（需要 <id>\agent.cordis.yml）"

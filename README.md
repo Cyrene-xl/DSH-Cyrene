@@ -111,11 +111,15 @@ scripts\install.bat
 node scripts/install.mjs
 ```
 
-> ⚠️ **Windows 的两条路径（`install.ps1` / `install.bat`）尚未在真实 Windows 上实跑过** ——
-> 开发环境没有 PowerShell，它们只做过人工审查。`install.sh` 与 `install.mjs` 是用临时
-> `DSH_HOME` 实测过的（安装 / 幂等 / 卸载）。
-> Windows 用户若跑不通，**用 `node scripts/install.mjs` 即可**（同样是跨平台、无 shell 依赖）。
-> 详见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
+> ⚠️ **Windows 的两条路径（`install.ps1` / `install.bat`）尚未在真实 Windows 上实跑验证过。**
+>
+> 开发环境没有 PowerShell。已收到一次真实 Windows 反馈：旧版本在 PowerShell 5.1 上报
+> `unexpected token ')'`（LF 行尾 + 跨行管道所致），**现已修复**（`.gitattributes` 锁 CRLF、
+> 管道压成一行），但修完**仍未在真机上复跑**。
+>
+> **Windows 用户遇到任何问题，直接改用 `node scripts/install.mjs`** —— 它是跨平台、无 shell
+> 依赖的，已用临时 `DSH_HOME` 实测过（安装 / 幂等 / 卸载）。
+> 细节见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
 
 脚本会把 `preset/` 下的**每个子目录**装成对应的预设：
 `preset/chat/` → `~/.dsh/.agent-presets/chat/`，
