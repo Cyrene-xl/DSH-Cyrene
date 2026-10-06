@@ -111,14 +111,14 @@ scripts\install.bat
 node scripts/install.mjs
 ```
 
-> ⚠️ **Windows 的两条路径（`install.ps1` / `install.bat`）尚未在真实 Windows 上实跑验证过。**
+> ⚠️ **Windows 的两条路径（`install.ps1` / `install.bat`）目前仍是"尽力维护"，尚未验证通过。**
 >
-> 开发环境没有 PowerShell。已收到一次真实 Windows 反馈：旧版本在 PowerShell 5.1 上报
-> `unexpected token ')'`（LF 行尾 + 跨行管道所致），**现已修复**（`.gitattributes` 锁 CRLF、
-> 管道压成一行），但修完**仍未在真机上复跑**。
+> 开发环境没有 PowerShell，改完只能做静态审查。已收到**两轮**真实 Windows 反馈，
+> 逐条修掉了：LF 行尾（并改为让 *blob* 本身就是 CRLF）、跨行管道、here-string、
+> 把 `if` 当表达式赋值。**但最新一版仍未在真机上跑通过。**
 >
-> **Windows 用户遇到任何问题，直接改用 `node scripts/install.mjs`** —— 它是跨平台、无 shell
-> 依赖的，已用临时 `DSH_HOME` 实测过（安装 / 幂等 / 卸载）。
+> **Windows 用户建议直接用 `node scripts/install.mjs`** —— 跨平台、无 shell 依赖，
+> 已用临时 `DSH_HOME` 实测过（安装 / 幂等 / 卸载）。遇到任何问题都请优先走它。
 > 细节见 [`AGENTS.md`](./AGENTS.md) 的「验证状态」一节。
 
 脚本会把 `preset/` 下的**每个子目录**装成对应的预设：

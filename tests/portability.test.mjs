@@ -92,13 +92,49 @@ test('可移植性：Windows 脚本必须是 CRLF、POSIX 脚本必须是 LF', (
   );
 });
 
-test('可移植性：.gitattributes 必须继续锁住那两类行尾', () => {
+test('可移植性：.gitattributes 必须继续锁住这两类文件', () => {
   const ga = join(repoRoot, '.gitattributes');
   assert.ok(existsSync(ga), '.gitattributes 不能删 —— 删了 Windows 用户会重新踩坑');
   const text = readFileSync(ga, 'utf8');
   for (const rule of ['*.ps1', '*.bat', '*.sh']) {
     assert.ok(text.includes(rule), `.gitattributes 应包含 ${rule} 的行尾规则`);
   }
-  assert.match(text, /\*\.ps1[^\n]*eol=crlf/, '*.ps1 必须锁 eol=crlf');
+  // Windows 脚本必须是 `-text`（**不让 Git 转换**），而不是 `text eol=crlf`：
+  // 后者只在检出时转 CRLF，**blob 里仍是 LF** —— 于是 git pull 过的人、以及用
+  // raw / jsDelivr 下载的人拿到的还是 LF。这是真实反馈里量了 blob SHA256 才发现的。
+  assert.match(text, /\*\.ps1[^\n]*-text/, '*.ps1 必须是 -text（blob 里就得是 CRLF）');
+  assert.match(text, /\*\.bat[^\n]*-text/, '*.bat 必须是 -text');
   assert.match(text, /\*\.sh[^\n]*eol=lf/, '*.sh 必须锁 eol=lf');
+  // 反向断言：不许再退回 eol=crlf 那种"只转检出"的写法
+  assert.doesNotMatch(text, /^\*\.ps1[^\n]*eol=crlf/m, '*.ps1 不该用 eol=crlf —— 那修不了 blob');
+});
+
+test('可移植性：PowerShell 5.1 不支持的写法不得出现在 .ps1 里', () => {
+  // 两次真实 Windows 反馈换来的规则。5.1 的解析器在这两种写法上会**失步** ——
+  // 报错位置漂到后面几十行的某个 `}` 上，看起来跟肇事那行毫无关系，极难查。
+  //
+  //   1. here-string（`@" ... "@`）遇上 LF 行尾：解析失败。
+  //   2. `$x = if (...) { } else { }`：把 if 当表达式赋值是 PowerShell 7 的写法。
+  //
+  // 两者在 Linux 上都不会被发现（我们根本不跑 PowerShell），所以写成静态断言。
+  const files = collect(join(repoRoot, 'scripts'), ['.ps1']);
+  assert.ok(files.length > 0, '应当至少有一个 .ps1');
+
+  const problems = [];
+  for (const file of files) {
+    const rel = file.slice(repoRoot.length + 1);
+    const lines = readFileSync(file, 'utf8').replace(/\r\n/g, '\n').split('\n');
+    lines.forEach((line, i) => {
+      const t = line.trimStart();
+      if (t.startsWith('//')) return;
+      if (/@["']\s*$/.test(line)) problems.push(`${rel}:${i + 1} 用了 here-string（@" 或 @'）`);
+      if (/^\s*\$[\w.]+\s*=\s*if\s*\(/.test(line)) problems.push(`${rel}:${i + 1} 把 if 当表达式赋值`);
+    });
+  }
+  assert.deepEqual(
+    problems,
+    [],
+    `PowerShell 5.1 会解析失败：\n  ${problems.join('\n  ')}\n`
+      + '→ here-string 改成字符串拼接；if 赋值改成先声明再 if/else 分开写。',
+  );
 });

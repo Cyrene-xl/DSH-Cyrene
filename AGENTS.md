@@ -90,24 +90,30 @@ npm run harness:check # 全部运行时代码的语法检查
 | `scripts/install.ps1` | ⚠️ **未验（开发机无 PowerShell）** | 只在开发机人工审查过。**已收到一次真实 Windows 反馈**：LF 行尾 + 多行管道 → PowerShell 5.1 报 `unexpected token ')'`。已修（见下）；但修完**仍未在真实 Windows 上复跑** |
 | `scripts/install.bat` | ⚠️ **未验** | 同上（它只是转调 `.ps1`） |
 
-> **Windows 两条路径的已知坑（来自真实反馈，不是推测）：**
+> **Windows 两条路径的已知坑（全部来自真实反馈，不是推测）：**
 >
-> 1. **行尾必须是 CRLF。** 开发机是 Linux，默认 LF；而 PowerShell 5.1 解析 LF 行尾的
->    脚本会出问题。仓库根目录的 `.gitattributes` 现在把 `*.ps1` / `*.bat` / `*.cmd`
->    锁成 `eol=crlf`（同时把 `*.sh` 锁成 `eol=lf`）—— **别把那几行删掉**，删了就等于
->    让 Windows 用户重新踩一遍。
-> 2. **管道不要跨行写。** 5.1 对"行尾悬空 `|`"的处理不可靠，原本自动发现预设的那条
->    管道写了三行，实测直接语法报错。现在压成一行，并在原处留了注释。
-> 3. **入口判断不能用 `file://${process.argv[1]}`。** 同一个用户随后又踩到一条：
->    `export-preset-declarations.mjs` 在 Windows 上 **exit 0 但输出零字节、零报错** ——
->    原因就是这个写法。`process.argv[1]` 是 `C:\...\x.mjs`，而 `import.meta.url` 是
->    `file:///C:/.../x.mjs`，拼出来的 `file://C:\...` 永不相等，于是 `main()` 从不执行。
->    **必须用 `pathToFileURL(process.argv[1]).href`。**
+> 1. **行尾必须是 CRLF —— 而且必须是 *blob* 里的 CRLF。** 这里是连续两轮才修对的：
+>    第一轮用 `*.ps1 text eol=crlf`，只做到"**检出时**转 CRLF"，**blob 里存的仍是 LF**。
+>    于是 `git pull` 过的人（内容未变的文件不会重新检出）和用 raw / jsDelivr 下载的人
+>    拿到的还是 LF。反馈者量了 blob 的 SHA256 才发现。现在改成 `-text` —— 不让 Git
+>    做任何转换，**工作区是什么就存什么**，谁拿到都是 CRLF。
+>    （代价：这几类文件在 Git 里按二进制看待、diff 不再逐行。）
+> 2. **管道不要跨行写。** 5.1 对"行尾悬空 `|`"的处理不可靠。
+> 3. **不要用 here-string（`@" ... "@`）。** 5.1 对它的终止符极挑（必须独占一行且在列 0），
+>    遇上 LF 行尾直接解析失败。改用字符串拼接。
+> 4. **不要把 `if` 当表达式赋值**（`$x = if (...) { } else { }`）—— 那是 PowerShell 7 的写法。
+>    5.1 上会让**解析器失步**：报错位置漂到后面几十行的某个 `}` 上，看起来跟肇事那行毫无
+>    关系（真实反馈报在 L60/L62/L65/L72，查了很久）。先声明、再 if/else 分开写。
+> 5. **入口判断不能用 `` `file://${process.argv[1]}` ``。** 在 Windows 上永不成立
+>    （`process.argv[1]` 是 `C:\...`，`import.meta.url` 是 `file:///C:/...`），后果是
+>    `main()` 从不执行：**exit 0、零输出、零报错**。必须用 `pathToFileURL(process.argv[1]).href`。
 >
-> 这三条都**只能靠真实 Windows 暴露** —— 开发机上 `node --check`、`npm test`、人工审查
-> 全都看不出来。所以 `tests/portability.test.mjs` 把这类"Linux 上永远正常"的写法写成
-> **静态断言**（行尾、CRLF、入口判断、`.gitattributes` 规则），改成那样就会被拦下。
-> 有条件的话请务必在真机上跑一次 `install.ps1`，然后把上面对应的"未验"改成"已验"。
+> 这些**都只能靠真实 Windows 暴露** —— 开发机上 `node --check`、`npm test`、人工审查
+> 全都看不出来。所以 `tests/portability.test.mjs` 把它们写成**静态断言**（行尾、
+> `.gitattributes` 规则、入口判断、PS 5.1 禁用写法），改回去就会被拦下。
+>
+> ⚠️ 即便如此：`install.ps1` 这条路的修复**仍未在真实 Windows 上复跑通过**。
+> 有条件的话请在真机上验证后再把"未验"改成"已验"。
 
 > **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
 > standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏

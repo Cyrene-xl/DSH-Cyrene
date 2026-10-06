@@ -19,7 +19,15 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $SrcRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'preset'
-$DshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
+
+# ⚠️ 不要写成 `$DshHome = if (...) { } else { }`。
+# "把 if 当表达式赋值"是 PowerShell 7 的写法，在 Windows PowerShell 5.1 上会让
+# 解析器失步 —— 报错位置会漂到后面几十行的某个 `}` 上，看起来跟这一行毫无关系
+# （真实反馈里就报在 L60/L62/L65/L72，查了很久）。5.1 上就老老实实分开写。
+$DshHome = $env:DSH_HOME
+if (-not $DshHome) {
+    $DshHome = Join-Path $env:USERPROFILE '.dsh'
+}
 
 if (-not (Test-Path $SrcRoot)) {
     Write-Error "找不到预设源目录：$SrcRoot"
@@ -84,11 +92,15 @@ foreach ($id in $PresetIds) {
         }
         if (-not $Force) {
             Write-Host ""
-            Write-Error @"
-拒绝覆盖：$dest 已存在且与预设不同。
-  这通常意味着你已经改过自己的预设（比如调了口吻）。
-  确认要覆盖请加 -Force（会先备份）。
-"@
+            # ⚠️ 这里**故意不用 here-string**（`@" ... "@`）。
+            # 5.1 对 here-string 的终止符很挑：它必须独占一行且在列 0；而本文件在
+            # 仓库里存的是 LF 行尾时，这个组合在 5.1 上会解析失败。改用最笨的
+            # 字符串拼接 —— 没有跨行结构，就没有行尾敏感的余地。
+            Write-Error (
+                "拒绝覆盖：$dest 已存在且与预设不同。" + [Environment]::NewLine +
+                "  这通常意味着你已经改过自己的预设（比如调了口吻）。" + [Environment]::NewLine +
+                "  确认要覆盖请加 -Force（会先备份）。"
+            )
             $Failed = 1
             continue
         }
