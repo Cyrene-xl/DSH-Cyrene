@@ -98,12 +98,19 @@ npm run harness:check # 全部运行时代码的语法检查
 >    让 Windows 用户重新踩一遍。
 > 2. **管道不要跨行写。** 5.1 对"行尾悬空 `|`"的处理不可靠，原本自动发现预设的那条
 >    管道写了三行，实测直接语法报错。现在压成一行，并在原处留了注释。
+> 3. **入口判断不能用 `file://${process.argv[1]}`。** 同一个用户随后又踩到一条：
+>    `export-preset-declarations.mjs` 在 Windows 上 **exit 0 但输出零字节、零报错** ——
+>    原因就是这个写法。`process.argv[1]` 是 `C:\...\x.mjs`，而 `import.meta.url` 是
+>    `file:///C:/.../x.mjs`，拼出来的 `file://C:\...` 永不相等，于是 `main()` 从不执行。
+>    **必须用 `pathToFileURL(process.argv[1]).href`。**
 >
-> 这两条都**只能靠真实 Windows 暴露** —— 开发机上 `node --check` 和人工审查都看不出来。
+> 这三条都**只能靠真实 Windows 暴露** —— 开发机上 `node --check`、`npm test`、人工审查
+> 全都看不出来。所以 `tests/portability.test.mjs` 把这类"Linux 上永远正常"的写法写成
+> **静态断言**（行尾、CRLF、入口判断、`.gitattributes` 规则），改成那样就会被拦下。
 > 有条件的话请务必在真机上跑一次 `install.ps1`，然后把上面对应的"未验"改成"已验"。
 
-
-> **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置> standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
+> **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
+> standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
 > 就是为此设的：**它只在装了 DSH 的机器上跑**，所以别把它当成 CI 覆盖到了。
 
 

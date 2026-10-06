@@ -32,7 +32,7 @@
  */
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = join(here, '..', 'preset');
@@ -112,4 +112,23 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+/**
+ * 判断"是不是直接跑的"。
+ *
+ * ⚠️ **不要**写成 ``import.meta.url === `file://${process.argv[1]}` ``。
+ * 那个写法在 Linux/macOS 上碰巧成立，在 Windows 上永远不成立：
+ *
+ *   process.argv[1]  →  C:\repo\scripts\export-preset-declarations.mjs
+ *   import.meta.url  →  file:///C:/repo/scripts/export-preset-declarations.mjs
+ *   拼出来的         →  file://C:\repo\scripts\...   ← 永不相等
+ *
+ * 后果是 main() 从不执行：**退出码 0、输出零字节、没有任何报错**。
+ * 这是真实反馈里踩到的（那位 Windows 用户三种调用方式都试了，全是空输出，
+ * 最后绕过去直接调 declarationFor() 才成功）。
+ *
+ * 必须走 pathToFileURL —— 它会把平台差异（盘符、分隔符、转义）处理掉。
+ */
+const isDirectRun =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) main();
