@@ -46,11 +46,11 @@ node scripts\install.mjs
 
 ---
 
-## 已知的坑（五条，全部来自真实 Windows 反馈）
+## 已知的坑（六条）
 
-这些**都只能靠真实 Windows 暴露** —— 开发机上 `node --check`、`npm test`、
-人工审查全都看不出来。记在这里，一是让 Windows 用户知道"不是你的问题"，
-二是将来若恢复 Windows 脚本，照着避开。
+前五条来自真实 Windows 用户反馈，**都只能靠真实 Windows 暴露** —— 开发机上
+`node --check`、`npm test`、人工审查全都看不出来。第六条是 CI 的 `windows-latest`
+job 上线当天自己抓到的：它不需要用户反馈，因为 CI 就是一台真 Windows 机器。
 
 | # | 现象 | 根因 | 正确写法 |
 | --- | --- | --- | --- |
@@ -59,9 +59,12 @@ node scripts\install.mjs
 | 3 | 语法报错，且位置飘到后面几十行的某个 `}` 上 | 管道跨行写（行尾悬空 `\|`），5.1 处理不可靠 | 整条管道写在一行 |
 | 4 | 同上（解析器失步，报错位置毫无关系） | **here-string**（`@" ... "@`）：5.1 要求终止符独占一行且在列 0，遇上 LF 行尾直接失败；以及把 `if` 当表达式赋值（`$x = if (...) { } else { }`，那是 PowerShell 7 的写法） | 改用字符串拼接；`if` 先声明再 if/else 分开写 |
 | 5 | Node 脚本 **exit 0、零输出、零报错** | 入口判断写成 `` import.meta.url === `file://${process.argv[1]}` `` —— Windows 上 `process.argv[1]` 是 `C:\...`，而 `import.meta.url` 是 `file:///C:/...`，拼出来永不相等，`main()` 从不执行 | 用 `pathToFileURL(process.argv[1]).href` |
+| 6 | **插件装上了，人设也在，但世界书整条失效** —— 触发词一个都命中不了，注入块照常出现、内容却是错的，全程不报错 | 世界书数据是 `worldbook/data/*.md`。Windows 上 `core.autocrlf=true`（GitHub 的 windows runner 默认就是）检出来是 CRLF，而解析器只按 `\n` 切行 → 标题 / 触发词 / 正文尾部全挂上 `\r`，触发词永远匹配不上（用户消息里没有 `\r`） | 解析层先归一 `\r\n` → `\n`（`worldbook/parse.mjs`）；仓库再用 `.gitattributes` 的 `* text=auto eol=lf` 让各平台检出同一种行尾 |
 
-第 5 条与 PowerShell 无关，是**跨平台脚本**的坑，现在由
-[`tests/portability.test.mjs`](../tests/portability.test.mjs) 常驻守着。
+第 5、6 条与 PowerShell 无关，是**跨平台行为**的坑。第 5 条由
+[`tests/portability.test.mjs`](../tests/portability.test.mjs) 常驻守着；第 6 条的
+回归测试在 `tests/worldbook.test.mjs`（把数据整份转成 CRLF 再解析，与 LF 结果逐字比对，
+所以在 Linux 上也跑）。
 
 ---
 
@@ -95,7 +98,9 @@ node scripts\install.mjs
 
 ## 致谢
 
-上面五条坑全部来自 B 站用户 **風兮_丢卞** 的连续反馈。
+上面第 1–5 条坑全部来自 B 站用户 **風兮_丢卞** 的连续反馈。第 6 条是 CI 加上
+`windows-latest` job 之后跑出来的第一份结果 —— 那条路就是他这次讨论里促成的：
+没有"必须有人在真 Windows 上跑"这个共识，也不会有人想到去开这台机器。
 
 他那几轮不是普通的"报 bug" —— 每一条都给出了正确的问题定位，或者给出了能自证的
 验证方法：

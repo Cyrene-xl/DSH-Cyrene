@@ -82,18 +82,24 @@ npm run harness:check # 全部运行时代码的语法检查
 
 | 对象 | 状态 | 怎么验的 |
 | --- | --- | --- |
-| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（63 条）+ `npm run harness:check`（全量语法检查） |
+| `index.js` / `memory.js` / `nickname.js` / `worldbook/*` | ✅ 已验 | `npm test`（72 条）+ `npm run harness:check`（全量语法检查） |
 | `preset/chat/`、`preset/cyrene-work/` 的 YAML | ✅ 已验 | 解析 + 结构断言（`tests/preset.test.mjs`：条目数、`complete: true`、两模式挂载差异） |
 | `preset/cyrene-work/` 的**工具行与内置 standard 的同步性** | ✅ 已验（**装了 DSH 才跑**） | `tests/preset.test.mjs` 的漂移护栏：断言比 standard 少 0 行、多出的只允许 `cyrene-memory` / `dsh-cyrene-worldbook`。CI 上没有 DSH，该文件整体跳过 |
 | `scripts/install.sh` | ✅ 已验 | 用**临时 `DSH_HOME`** 实跑：安装 → 幂等复跑报"已是最新" → `--uninstall` |
 | `scripts/install.mjs` | ✅ 已验 | 同上（安装 / 幂等 / 卸载三条都跑过）。**Windows 也走这条** |
 | `scripts/export-preset-declarations.mjs` | ✅ 已验 | 往返比对：解析生成结果，`insert[0].config.plugins` 与源组合深度相等；且断言 patch 顶层只允许出现 `- insert:` |
 | ~~`scripts/install.ps1` / `install.bat`~~ | **已删除** | 作者没有自己的电脑，项目是在 DSH App（Android）里做的 —— 那两个脚本**无法实测**，靠用户反馈连试三轮仍未跑通。与其留一条没人能验证的路，不如删掉。详见下面「Windows 已知坑」 |
+| **Windows 兼容性** | ✅ 已验（由 CI 代跑） | `.github/workflows/test.yml` 的 `test-windows` job 在 `windows-latest` 上跑：`harness:check`、`npm test`、声明导出必须有输出、`install.mjs` 安装/幂等/卸载。上线第一次跑就抓到「CRLF 让世界书静默失效」，见 `docs/windows.md` 第 6 条 |
+
+> **CI 里的 `windows-latest` 就是作者的 Windows 机器。** 作者只有 Android，
+> 桌面端的验证全靠这个 job；它红过的那次（CRLF / 世界书）说明这条路比人工审查有效 ——
+> 平台相关的改动**必须**在这里留断言，光靠说明文档守不住。
 
 > ### Windows：脚本已移除，细节见专项文档
 >
 > `scripts/install.ps1` 与 `install.bat` **已经删掉**，Windows 用户改走
-> `node scripts/install.mjs`。原因与那三轮真实反馈换来的**五条坑**，
+> `node scripts/install.mjs`。原因与那三轮真实反馈（外加 CI 在真 Windows 上跑出来的
+> 第一条：CRLF 让世界书整条静默失效）换来的**六条坑**，
 > 全部写在 **[`docs/windows.md`](./docs/windows.md)** —— 一份文档，一处维护，
 > 不要在这里再抄一遍。
 >
@@ -107,7 +113,8 @@ npm run harness:check # 全部运行时代码的语法检查
 >
 > 📌 将来若要恢复 Windows 脚本：**先在一台有 Windows 的机器上真跑通，再提交**。
 > `tests/portability.test.mjs` 里那几条 `.ps1` 断言是条件式的 —— 现在跳过，
-> 文件一加回来立刻生效。这个仓库在这一件事上已经浪费了三轮。
+> 文件一加回来立刻生效（注意 `-text` 规则要排在 `* text=auto eol=lf` **之后**，
+> gitattributes 以最后匹配的规则为准）。这个仓库在这一件事上已经浪费了三轮。
 
 > **抄本漂移是唯一一类"不会报错"的失效。** `preset/cyrene-work/` 的工具行整段抄自内置
 > standard，DSH 升级后内置变了这份不会变 —— 表现是静默少挂一个工具。上面那条漂移护栏
