@@ -132,7 +132,7 @@ export function normalizeStyleId(value) {
  * @returns 状态对象。
  */
 function emptyState() {
-  return { version: 1, default: DEFAULT_STYLE, customTemperature: null, customLabel: null, sessions: {} }
+  return { version: 1, default: DEFAULT_STYLE, customTemperature: null, customLabel: null, customTier: 1, sessions: {} }
 }
 
 /**
@@ -167,6 +167,9 @@ export function readState(file) {
       default: isStyleId(raw.default) ? raw.default : DEFAULT_STYLE,
       customTemperature: customOk ? custom : null,
       customLabel: label === '' ? null : label,
+      // 强度档：1 = 默认（第一档），2 = 用户**在设置里显式开启**的第二档。
+      // 这是硬开关：注入时由插件写授权标记，不让模型去猜"用户有没有点头"。
+      customTier: Number(raw.customTier) === 2 ? 2 : 1,
       sessions
     }
   } catch {
@@ -254,6 +257,7 @@ export function chooseStyle(state, sessionId, styleId, now = Date.now()) {
     default: isStyleId(state?.default) ? state.default : DEFAULT_STYLE,
     customTemperature: state?.customTemperature ?? null,
     customLabel: state?.customLabel ?? null,
+    customTier: state?.customTier === 2 ? 2 : 1,
     sessions: Object.fromEntries(kept)
   }
 }
@@ -266,16 +270,33 @@ export function chooseStyle(state, sessionId, styleId, now = Date.now()) {
  * @param markdown - 风格文件正文。
  * @returns 注入文本；空内容返回空串。
  */
-export function buildStyleBlock(markdown) {
+export function buildStyleBlock(markdown, marker) {
   const trimmed = String(markdown ?? '').trim()
   if (trimmed === '') return ''
-  return [
+  const lines = [
     '[表达风格]',
     '以下内容仅用于控制措辞、句式、语气和信息密度。',
     '不得修改角色身份、事实记忆、工具规则、安全约束及硬性行为规则。',
-    '',
-    trimmed
-  ].join('\n')
+    ''
+  ]
+  const note = String(marker ?? '').trim()
+  if (note !== '') lines.push(note, '')
+  lines.push(trimmed)
+  return lines.join('\n')
+}
+
+/**
+ * 强度档的**授权标记**：由插件按状态文件里的 `customTier` 写死，不靠模型判断。
+ *
+ * 为什么要有它：只说"用户明确同意才进第二档"是把判断交给模型，而模型很容易把
+ * 一句玩笑当成点头。写进标记后，模型看到的是确定的事实（已授权 / 未授权）。
+ * @param tier - 1 或 2。
+ * @returns 一行标记文本。
+ */
+export function tierMarker(tier) {
+  return Number(tier) === 2
+    ? '【授权状态】用户已在设置中显式开启第二档：可以使用更直接、更冷的占有表达；「底线」仍然适用。'
+    : '【授权状态】当前为第一档（未开启第二档）：不要使用第二档的表达（直接宣告独占、压迫感台词、冷下来的语气）。'
 }
 
 /** 风格文件正文缓存：path+mtime+size → 文本。文件小、读得也不频繁，够用。 */
@@ -346,7 +367,10 @@ export function apply(ctx, config = {}) {
       const sessionId = session?.id ?? ''
       const state = readState(storePath)
       const styleId = resolveStyle(state, sessionId)
-      return buildStyleBlock(readStyleText(styleId, { dir: styleDir, customPath }))
+      const text = readStyleText(styleId, { dir: styleDir, customPath })
+      // 两档强度只对 custom 档有意义；内置五档不带标记。
+      const marker = styleId === 'custom' ? tierMarker(state.customTier) : ''
+      return buildStyleBlock(text, marker)
     }
   })
 

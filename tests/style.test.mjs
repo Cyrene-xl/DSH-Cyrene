@@ -23,6 +23,7 @@ import {
   isStyleDisabled,
   isStyleId,
   labelOf,
+  tierMarker,
   normalizeStyleId,
   presetIdOf,
   readState,
@@ -285,6 +286,55 @@ test('显示名：custom 档可以用 customLabel 改名（只影响显示）', 
 test('显示名：选择记录会保留 customLabel', () => {
   const state = chooseStyle({ customLabel: '我的风格', sessions: {} }, 's1', 'lively', 1)
   assert.equal(state.customLabel, '我的风格')
+})
+
+test('强度档：customTier 只认 2，其余一律当第一档', () => {
+  const file = freshStore('tier')
+  writeFileSync(file, JSON.stringify({ customTier: 2 }), 'utf8')
+  assert.equal(readState(file).customTier, 2)
+  writeFileSync(file, JSON.stringify({ customTier: 3 }), 'utf8')
+  assert.equal(readState(file).customTier, 1, '越界视为第一档')
+  writeFileSync(file, JSON.stringify({ customTier: '2' }), 'utf8')
+  assert.equal(readState(file).customTier, 2, '数字字符串也认（手改 JSON 常见）')
+  writeFileSync(file, JSON.stringify({}), 'utf8')
+  assert.equal(readState(file).customTier, 1, '没写就是第一档')
+})
+
+test('强度档：授权标记由插件写死，两档文字不同', () => {
+  const on = tierMarker(2)
+  const off = tierMarker(1)
+  assert.ok(on.includes('已在设置中显式开启第二档'))
+  assert.ok(off.includes('未开启第二档'))
+  assert.notEqual(on, off)
+})
+
+test('强度档：注入块里的标记只在 custom 档出现，且两档可区分', () => {
+  const customPath = join(TMP, 'tier-custom.md')
+  writeFileSync(customPath, '# 我的风格\n说话短一点。\n', 'utf8')
+  const { ctx, contexts } = mockCtx()
+  const storePath = freshStore('tier-inject')
+  writeState(storePath, chooseStyle(readState(storePath), 's1', 'custom', 1))
+  apply(ctx, { storePath, dir: STYLE_DIR, customPath })
+
+  const session = { id: 's1', snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'chat' } }] }
+  const block = contexts[0].text({ agent: { session } })
+  assert.ok(block.includes('【授权状态】'), 'custom 档必须带授权标记')
+  assert.ok(block.includes('未开启第二档'), '默认是第一档')
+  assert.ok(block.includes('我的风格'), '正文仍要在')
+
+  writeState(storePath, { ...readState(storePath), customTier: 2 })
+  const block2 = contexts[0].text({ agent: { session } })
+  assert.ok(block2.includes('已在设置中显式开启第二档'), '打开第二档后标记应改变')
+});
+
+test('强度档：内置五档不带授权标记', () => {
+  const { ctx, contexts } = mockCtx()
+  const storePath = freshStore('tier-builtin')
+  writeState(storePath, chooseStyle(readState(storePath), 's1', 'lively', 1))
+  apply(ctx, { storePath, dir: STYLE_DIR, customPath: join(TMP, 'none.md') })
+  const session = { id: 's1', snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'chat' } }] }
+  const block = contexts[0].text({ agent: { session } })
+  assert.ok(!block.includes('【授权状态】'), '内置档不需要授权标记')
 })
 
 // ───────────────────────── 接线 ─────────────────────────
