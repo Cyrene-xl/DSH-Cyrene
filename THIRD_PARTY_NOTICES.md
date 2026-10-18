@@ -54,6 +54,30 @@
 - 上游许可证：MIT License，`Copyright (c) 2026 Playa`
 - 许可证副本：见 [`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)
 
+### 风格档位文件（`styles/`）
+
+表达风格插件的五份风格文件是上游 `prompts/styles/` 的**原文**，一字未改：
+
+| 本仓库 | 取自上游 |
+|---|---|
+| `styles/01_default.md` | `prompts/styles/01_default.md` |
+| `styles/02_lively.md` | `prompts/styles/02_lively.md` |
+| `styles/03_healing.md` | `prompts/styles/03_healing.md` |
+| `styles/04_focused.md` | `prompts/styles/04_focused.md` |
+| `styles/05_sweet.md` | `prompts/styles/05_sweet.md` |
+
+档位与温度的对应关系来自上游 `src/shared/style-sampling.ts` 的 `BUILT_IN_STYLE_PRESETS`
+（lively 0.90 / healing 0.55 / focused 0.40 / sweet 0.82；`default` 在代码里不设采样）。
+注入块的外壳（`[表达风格]` 那三行）逐字取自上游 `buildStylePromptBlock()`。
+
+**本仓库改了的只有"怎么接"**：上游把这些文件在请求尾部注入、并同时设置采样参数；
+本仓库改为 DSH 的 `systemPrompt.context()`（尾部，order 130）+ `agent/request` 里的
+`temperature` 写入。上游的重复惩罚（OpenAI `frequency_penalty` / Qwen `repetition_penalty`）
+在 DSH 的 `LlmCallConfig` 里**没有对应字段**，因此未移植 —— 这是能力边界，不是遗漏。
+
+- 上游许可证：MIT License，`Copyright (c) 2026 Playa`
+- 许可证副本：见 [`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)
+
 ### 世界书数据
 
 `worldbook/data/` 下的 5 个文件（61 条设定条目）同样整理自 **Cyrene-Agent**

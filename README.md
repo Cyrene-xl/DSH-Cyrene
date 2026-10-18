@@ -187,6 +187,7 @@ node scripts/install.mjs
 | 世界书 | ✅ 本包 `worldbook/`，**数据随包发运**（61 条） | ✅ 同上 |
 | 运行时上下文快照 | ✅ `includeRuntimeContext: true`（世界书依赖它） | ✅ 同上 |
 | 可配置称呼 | ✅ 本包 `nickname.js` 提供 `{{user_nickname}}` | ❌ **未挂** —— 人设正文也没引用它 |
+| 表达风格档位 | ✅ 本包 `style.js`：五档 + custom，`/style` 切换（按会话） | ❌ **未挂**（上游 work/code 模式不吃风格） |
 | 文件读写 / Shell / 文件检索 | ❌ 不提供 | ✅ `bash` / `pwsh` / `tool-fs` / `tool-fs-search` |
 | 计划 / 目标 / Skills | ❌ 不提供 | ✅ `plan-mode` / `tool-goal` / `tool-skill` |
 | 子代理（含 fork） | ❌ 不提供 | ✅ `tool-subagent` / `tool-subagent-fork` |
@@ -273,6 +274,53 @@ node scripts/install.mjs
 | 存哪 | `~/.dsh/cyrene-memory.md` | 包内 `worldbook/data/` |
 | 怎么进去 | 模板变量 `{{cyrene_memory}}` | 运行时上下文快照 |
 | 什么时候变 | 你让她记、或你手改 | 命中变化时 |
+
+## 表达风格
+
+上游的语气不只有一份静态人设：**每档风格 = 一段风格提示词 + 一个温度**。本包的
+`style.js` 把这条绑定接进了 DSH，只挂在**对话模式**（工作模式与上游一致，不吃风格）。
+
+```bash
+/style            # 列出全部档位，并标出当前档
+/style lively     # 元气・活泼（温度 0.90）
+/style healing    # 治愈・安心（0.55）
+/style focused    # 知性・认真（0.40）
+/style sweet      # 撒娇・黏人（0.82）
+/style default    # 回到默认档（★ 不写温度，跟随模型默认）
+/style custom     # 读你自己写的那份风格文件
+```
+
+| 档位 | 风格文件 | 温度 |
+|---|---|---|
+| `default` | `styles/01_default.md` | **不写**（跟随模型默认） |
+| `lively` | `styles/02_lively.md` | 0.90 |
+| `healing` | `styles/03_healing.md` | 0.55 |
+| `focused` | `styles/04_focused.md` | 0.40 |
+| `sweet` | `styles/05_sweet.md` | 0.82 |
+| `custom` | `<DSH_HOME>/cyrene-style-custom.md` | 可选，见下 |
+
+几个要点：
+
+- **按会话生效**：选择存在 `<DSH_HOME>/cyrene-style.json`（最多留 50 条会话记录），
+  换档只影响当前会话。没设置过的会话用 JSON 里的 `default` 字段（等于全局默认）。
+- **风格只改"怎么说"**：注入块外壳与上游逐字一致，明确写着「不得修改角色身份、事实记忆、
+  工具规则、安全约束及硬性行为规则」。它走 `systemPrompt.context()`（请求尾部、每轮重算），
+  `order: 130` 排在常驻世界书（140）之前 —— 与上游的注入顺序一致。
+- **温度只能这么给**：DSH 的预设行**没有** `temperature` 字段，只能通过 `agent/request`
+  瀑布改冻结前的调用配置（DSH 自己的 `dsh-webhook` 用同一手法改 `reasoningEffort`）。
+- **custom 档**：在 `<DSH_HOME>/cyrene-style-custom.md` 里写任何你想要的风格描述，
+  内容会被原样注入（外面仍套那层约束外壳）；想给它一个温度，在 `cyrene-style.json`
+  里加 `"customTemperature": 0.8`（0–2）。
+
+### 两条能力边界（不是没做，是做不到）
+
+1. **没有 `top_p`，也没有重复惩罚。** DSH 的 `LlmCallConfig` 只暴露
+   `provider / model / reasoningEffort / temperature / maxTokens / stop`。
+   上游 `BUILT_IN_STYLE_PRESETS` 里那半张表（OpenAI `frequency_penalty`、
+   Qwen `repetition_penalty`）在 DSH 这层**无处可放**，所以没搬。
+2. **`deepseek-flash` 开着思考时，温度可能不生效。** 上游对 DeepSeek 也有同类规则
+   （`requiresReasoningOff: true`）。本项目**不替你改路由**，只在 `/style` 的回复里
+   提示一句；要确定性生效，请自己把该会话的思考模式关掉。
 
 ### 一条必须知道的依赖
 
@@ -374,6 +422,8 @@ dsh-cyrene/
 ├── index.js                 宿主半体锚点（刻意不做任何运行时改动）
 ├── memory.js                会话级插件：长期记忆变量 + remember / forget 工具
 ├── nickname.js              会话级插件：称呼变量 {{user_nickname}}
+├── style.js                 会话级插件：表达风格档位（风格提示词 + 温度，按会话）
+├── styles/                  随包发运的五份风格文件（上游原文，01_default … 05_sweet）
 ├── worldbook/
 │   ├── index.mjs            会话级插件：世界书注入（常驻块走 context，命中块走 pre-step）
 │   ├── parse.mjs            解析 Cyrene-Agent 格式的条目（纯函数）

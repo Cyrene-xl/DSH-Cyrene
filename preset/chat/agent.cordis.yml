@@ -928,3 +928,13 @@
 # 里用 dir 覆盖，或在该文件里写 enabled:false 关掉。
 - id: dsh-cyrene-worldbook
   name: 'dsh-cyrene/worldbook'
+
+# 表达风格档位：上游 prompts/styles/ 的五档 + custom（本项目补充的接线）。
+#
+# 只影响「怎么说」，不改人设身份与事实（注入块自带那两行约束，与上游逐字一致）。
+# 风格提示词走 context()（尾部、order 130，排在常驻世界书 140 之前）；
+# 温度走 agent/request —— DSH 的预设行没有 temperature 字段，只能这么给。
+# 档位**按会话**存在 <DSH_HOME>/cyrene-style.json，用 /style 切换；
+# default 档不写温度（跟随模型默认），与上游一致。
+- id: cyrene-style
+  name: 'dsh-cyrene/style'

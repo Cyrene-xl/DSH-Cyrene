@@ -4,6 +4,37 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.4.0] — 2026-10-16
+
+### 新增
+
+**表达风格档位：`style.js` + `/style` 命令**
+
+- 五档 + custom，**每档 = 一段风格提示词 + 一个温度**，对齐上游 Cyrene-Agent 的
+  `prompts/styles/` 与 `BUILT_IN_STYLE_PRESETS`（lively 0.90 / healing 0.55 /
+  focused 0.40 / sweet 0.82；`default` 不设采样）。
+- 风格提示词走 `systemPrompt.context()`（请求尾部、每轮重算、`order: 130`，
+  排在常驻世界书 `140` 之前）；注入外壳与上游 `buildStylePromptBlock()` 逐字一致。
+- 温度走 `agent/request` 瀑布（DSH 的预设行没有 `temperature` 字段）。
+  `default` 档**不写温度**，跟随模型默认。
+- **按会话生效**：状态在 `<DSH_HOME>/cyrene-style.json`（最多留 50 条会话记录），
+  `/style` 查看与切换（`/style lively`、`/style default`、无参列出全部）。
+- `custom` 档读 `<DSH_HOME>/cyrene-style-custom.md`；没写文件时 `/style custom`
+  会报错提示而不是静默不注入。想给它温度就在 JSON 里加 `customTemperature`（0–2）。
+
+### 已知限制（能力边界，非缺陷）
+
+- DSH 的 `LlmCallConfig` 只暴露 `temperature / maxTokens / stop`：上游的 `top_p`、
+  OpenAI `frequency_penalty`、Qwen `repetition_penalty` **无处可放**，未移植。
+- `deepseek-flash` 在**思考模式**下温度可能不生效（上游同类规则 `requiresReasoningOff`）。
+  本项目不替你改路由，只在 `/style` 的回复里提示。
+
+### 升级须知
+
+- 对话模式预设多挂了一行 `dsh-cyrene/style`，**需要重装预设**才生效：
+  `node scripts/install.mjs --force`（已存在且内容不同时默认拒绝覆盖）。
+- 从 0.3.0 升级请一并看 0.3.1（行尾修复）与 0.3.2（会话来源修复）两条。
+
 ## [0.3.2] — 2026-10-16
 
 ### 修复
