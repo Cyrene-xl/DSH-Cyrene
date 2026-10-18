@@ -33,16 +33,20 @@ function reset(content) {
 /** 假 ctx：捕获变量 provider、pre-step 与工具。 */
 function mockCtx() {
   const variables = new Map()
+  const contexts = []
   const listeners = []
   const tools = []
   const ctx = {
-    systemPrompt: { variable: (name, provider) => variables.set(name, provider) },
+    systemPrompt: {
+      variable: (name, provider) => variables.set(name, provider),
+      context: (spec) => contexts.push(spec)
+    },
     on: (name, fn) => { if (name === 'agent/pre-step') listeners.push(fn) },
     inject: (_deps, cb) => {
       cb({ tools: { register: (tool) => tools.push(tool) } })
     }
   }
-  return { ctx, variables, listeners, tools }
+  return { ctx, variables, contexts, listeners, tools }
 }
 
 /** 跑一轮 pre-step。 */
@@ -126,6 +130,20 @@ test('接线：变量每轮现取，写入后立刻反映', () => {
   assert.equal(provider(), '小明', '必须现取，不能缓存')
 })
 
+test('接线：注册「称呼规则」上下文（排在风格/世界书之前）', () => {
+  reset(JSON.stringify({ nickname: '伙伴' }))
+  const { ctx, contexts } = mockCtx()
+  apply(ctx)
+  assert.equal(contexts.length, 1)
+  const spec = contexts[0]
+  assert.equal(spec.name, 'cyrene:nickname')
+  assert.equal(spec.order, 120, '要排在风格 130 与常驻世界书 140 之前')
+  const text = spec.text()
+  assert.ok(text.includes('「伙伴」'), '规则里要带上当前称呼')
+  assert.ok(text.includes('老婆') && text.includes('老公'), '必须写明关系称呼的对应关系')
+  assert.ok(text.includes('当轮就用新称呼'), '要说明换完立刻用')
+});
+
 test('接线：显式改口在本轮 pre-step 就落盘', async () => {
   reset(JSON.stringify({ nickname: '伙伴' }))
   const { ctx, listeners, variables } = mockCtx()
@@ -161,6 +179,7 @@ test('接线：工具 set_nickname 能改称呼（暗示类请求用）', () => 
   const tool = tools[0]
   assert.equal(tool.name, 'set_nickname')
   assert.ok(tool.description.includes('暗示'), '描述里要写清什么时候用')
+  assert.ok(tool.description.includes('老婆'), '关系称呼的场景要写进工具描述')
 
   const ok = tool.execute({ name: '老师' })
   assert.ok(ok.includes('老师'))
