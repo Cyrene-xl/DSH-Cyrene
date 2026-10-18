@@ -1,0 +1,51 @@
+name: release
+
+# 用仓库自带的 GITHUB_TOKEN 发 Release —— 不需要任何人提供 token。
+#
+# 为什么不是"监听 tag push"：历史 tag 早就推过了，工作流后加不会回放。
+# 所以改成监听 release-notes/ 的变更：往这个目录里放/改一条正文，push 上来就发一条。
+# 幂等：已经存在的 Release 直接跳过，不会覆盖手写过的说明。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-notes/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 创建 Release 需要
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # 必须取全量历史与 tag：下面要校验 refs/tags/<tag> 存在，
+      # 默认的 fetch-depth: 1 只取触发的那条分支，tag 是拿不到的。
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 逐个版本创建 Release（已存在则跳过）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 按版本号升序：这样最后一条（最新版）会成为 GitHub 的 "Latest"
+          for file in $(ls release-notes/v*.md | sort -V); do
+            tag=$(basename "$file" .md)
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "跳过 $tag：Release 已存在"
+              continue
+            fi
+            if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "跳过 $tag：仓库里没有这个 tag"
+              continue
+            fi
+            title=$(head -1 "$file" | sed 's/^# *//')
+            body=$(mktemp)
+            tail -n +2 "$file" > "$body"
+            gh release create "$tag" --title "$title" --notes-file "$body"
+            echo "已创建 $tag（$title）"
+          done
