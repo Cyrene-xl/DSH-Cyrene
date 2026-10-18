@@ -22,6 +22,7 @@ import {
   chooseStyle,
   isStyleDisabled,
   isStyleId,
+  labelOf,
   normalizeStyleId,
   presetIdOf,
   readState,
@@ -265,6 +266,27 @@ test('接线：工作模式的会话既拿不到风格文本，也不会被改�
   assert.equal(out2.temperature, 0.82)
 })
 
+test('显示名：custom 档可以用 customLabel 改名（只影响显示）', () => {
+  const file = freshStore('custom-label')
+  writeFileSync(file, JSON.stringify({ customLabel: '  我的风格  ' }), 'utf8')
+  const state = readState(file)
+  assert.equal(state.customLabel, '我的风格', '前后空白应被裁掉')
+  assert.equal(labelOf(state, 'custom'), '我的风格')
+  assert.equal(labelOf(state, 'lively'), '元气・活泼', '内置档位不受影响')
+
+  writeFileSync(file, JSON.stringify({ customLabel: '' }), 'utf8')
+  assert.equal(readState(file).customLabel, null, '空串视为没设')
+  assert.equal(labelOf(readState(file), 'custom'), '自定义', '没设时用默认显示名')
+
+  writeFileSync(file, JSON.stringify({ customLabel: 'x'.repeat(40) }), 'utf8')
+  assert.equal(readState(file).customLabel.length, 16, '显示名限长 16')
+})
+
+test('显示名：选择记录会保留 customLabel', () => {
+  const state = chooseStyle({ customLabel: '我的风格', sessions: {} }, 's1', 'lively', 1)
+  assert.equal(state.customLabel, '我的风格')
+})
+
 // ───────────────────────── 接线 ─────────────────────────
 
 test('接线：context() 注册名与 order（必须排在常驻世界书 140 之前）', () => {
@@ -326,6 +348,7 @@ test('接线：/style 命令 —— 列档位、切档、拒绝未知档位', ()
 
   const listed = command.handler(invocation(''))
   assert.equal(listed.kind, 'success')
+  assert.ok(listed.text.includes('/style custom'), '列表里应含 custom 档')
   for (const id of Object.keys(STYLES)) assert.ok(listed.text.includes(`/style ${id}`), `列表里缺 ${id}`)
 
   const switched = command.handler(invocation('focused'))

@@ -132,7 +132,7 @@ export function normalizeStyleId(value) {
  * @returns 状态对象。
  */
 function emptyState() {
-  return { version: 1, default: DEFAULT_STYLE, customTemperature: null, sessions: {} }
+  return { version: 1, default: DEFAULT_STYLE, customTemperature: null, customLabel: null, sessions: {} }
 }
 
 /**
@@ -159,10 +159,14 @@ export function readState(file) {
     // 全确定输出。只接受真正的 number。
     const custom = raw.customTemperature
     const customOk = typeof custom === 'number' && Number.isFinite(custom) && custom >= 0 && custom <= 2
+    // custom 档的**显示名**可以改（比如把这一档叫成自己的风格名）。它只用于界面与
+    // 命令提示，不参与任何逻辑判断，所以清洗得简单：去空白、限长、空串视为没设。
+    const label = typeof raw.customLabel === 'string' ? raw.customLabel.trim().slice(0, 16) : ''
     return {
       version: 1,
       default: isStyleId(raw.default) ? raw.default : DEFAULT_STYLE,
       customTemperature: customOk ? custom : null,
+      customLabel: label === '' ? null : label,
       sessions
     }
   } catch {
@@ -200,6 +204,21 @@ export function resolveStyle(state, sessionId) {
 }
 
 /**
+ * 档位的**显示名**。custom 档允许在状态文件里用 `customLabel` 改名
+ * （只影响界面与命令提示，不参与逻辑）。
+ * @param state - 状态（可空）。
+ * @param styleId - 档位名。
+ * @returns 显示名。
+ */
+export function labelOf(state, styleId) {
+  const id = normalizeStyleId(styleId)
+  if (id === 'custom' && typeof state?.customLabel === 'string' && state.customLabel !== '') {
+    return state.customLabel
+  }
+  return STYLES[id].label
+}
+
+/**
  * 这档风格该用多少温度。
  * @param styleId - 档位名。
  * @param state - 状态（custom 档的温度从这里读）。
@@ -234,6 +253,7 @@ export function chooseStyle(state, sessionId, styleId, now = Date.now()) {
     version: 1,
     default: isStyleId(state?.default) ? state.default : DEFAULT_STYLE,
     customTemperature: state?.customTemperature ?? null,
+    customLabel: state?.customLabel ?? null,
     sessions: Object.fromEntries(kept)
   }
 }
@@ -382,7 +402,7 @@ export function apply(ctx, config = {}) {
           const tail = t === undefined
             ? '温度跟随模型默认。'
             : `温度 ${t}（若当前模型开着思考，温度可能不生效）。`
-          return { kind: 'success', text: `已切换到「${STYLES[raw].label}」，只影响当前会话。${tail}` }
+          return { kind: 'success', text: `已切换到「${labelOf(state, raw)}」，只影响当前会话。${tail}` }
         }
       }),
       'cyrene-style command'

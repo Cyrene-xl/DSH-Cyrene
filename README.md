@@ -330,7 +330,8 @@ node scripts/install.mjs
   瀑布改冻结前的调用配置（DSH 自己的 `dsh-webhook` 用同一手法改 `reasoningEffort`）。
 - **custom 档**：在 `<DSH_HOME>/cyrene-style-custom.md` 里写任何你想要的风格描述，
   内容会被原样注入（外面仍套那层约束外壳）；想给它一个温度，在 `cyrene-style.json`
-  里加 `"customTemperature": 0.8`（0–2）。
+  里加 `"customTemperature": 0.8`（0–2）。显示名也能改：加 `"customLabel": "你的风格名"`
+  （只影响界面与 `/style` 的提示，不参与任何逻辑）。
   ⚠️ **只写"怎么写"**，别在里面写"去做什么"——那已经越过风格的边界，也不是本插件
   能替你兜住的东西。
 
