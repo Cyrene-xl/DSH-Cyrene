@@ -20,8 +20,10 @@ import {
   apply,
   buildStyleBlock,
   chooseStyle,
+  isStyleDisabled,
   isStyleId,
   normalizeStyleId,
+  presetIdOf,
   readState,
   readStyleText,
   resolveStyle,
@@ -212,6 +214,55 @@ test('选择记录：会话表按时间淘汰，最多 50 条', () => {
 test('选择记录：非法档位或空会话 id 直接抛', () => {
   assert.throws(() => chooseStyle({ sessions: {} }, 's1', 'nonsense'), TypeError)
   assert.throws(() => chooseStyle({ sessions: {} }, '', 'lively'), TypeError)
+})
+
+// ───────────────────────── 工作模式禁用（安全保险） ─────────────────────────
+
+test('预设识别：从会话日志取最后一次 agent-preset/selected', () => {
+  const session = (events) => ({ snapshotEvents: () => events })
+  assert.equal(presetIdOf(session([
+    { type: 'agent-preset/selected', data: { agentPreset: 'cyrene-work' } },
+    { type: 'agent-preset/selected', data: { agentPreset: 'chat' } }
+  ])), 'chat', '取最后一次，不是第一次')
+  assert.equal(presetIdOf(session([])), '', '没有事件就是未知')
+  assert.equal(presetIdOf(session([{ type: 'user/message', data: {} }])), '')
+  assert.equal(presetIdOf(session([{ type: 'agent-preset/selected', data: {} }])), '')
+  assert.equal(presetIdOf(undefined), '', '没有会话不能抛')
+  assert.equal(presetIdOf({ snapshotEvents: () => { throw new Error('boom') } }), '')
+})
+
+test('禁用判定：工作模式禁用，对话模式不禁用', () => {
+  assert.equal(isStyleDisabled('cyrene-work'), true)
+  assert.equal(isStyleDisabled('chat'), false)
+  assert.equal(isStyleDisabled(''), false, '未知（空串）不应该被当成禁用')
+  assert.equal(isStyleDisabled(undefined), false)
+  assert.equal(isStyleDisabled('whatever'), false)
+  assert.equal(isStyleDisabled('other', ['other']), true, '清单可由配置覆盖')
+})
+
+test('接线：工作模式的会话既拿不到风格文本，也不会被改温度', async () => {
+  const { ctx, contexts, handlers } = mockCtx()
+  const storePath = freshStore('wire-disabled')
+  // 故意存成 sweet，确认是被预设拦掉的，而不是因为"默认档"
+  writeState(storePath, chooseStyle(readState(storePath), 'work-1', 'sweet', 1))
+  apply(ctx, { storePath, dir: STYLE_DIR, customPath: join(TMP, 'none.md') })
+
+  const workSession = {
+    id: 'work-1',
+    snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'cyrene-work' } }]
+  }
+  assert.equal(contexts[0].text({ agent: { session: workSession } }), '', '工作模式禁止注入风格')
+  const config = { provider: 'p', model: 'm', reasoningEffort: 'high' }
+  const out = await handlers.get('agent/request')({ agent: { session: workSession } }, async () => config)
+  assert.equal(out, config, '工作模式禁止改温度')
+
+  const chatSession = {
+    id: 'work-1',
+    snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'chat' } }]
+  }
+  assert.ok(contexts[0].text({ agent: { session: chatSession } }).includes('风格：撒娇'), '同一个会话换到对话预设就生效')
+  const out2 = await handlers.get('agent/request')({ agent: { session: chatSession } }, async () => config)
+  assert.equal(out2.temperature, 0.82)
 })
 
 // ───────────────────────── 接线 ─────────────────────────

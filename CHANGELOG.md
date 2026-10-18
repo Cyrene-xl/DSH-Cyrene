@@ -22,6 +22,13 @@
 - `custom` 档读 `<DSH_HOME>/cyrene-style-custom.md`；没写文件时 `/style custom`
   会报错提示而不是静默不注入。想给它温度就在 JSON 里加 `customTemperature`（0–2）。
 
+### 安全约定
+
+- 风格**在工作模式里被禁用**：预设层面工作模式不挂该插件；`style.js` 的
+  `DISABLED_PRESETS` 还会在运行时拒绝 `cyrene-work`（读会话的
+  `agent-preset/selected` 事件判断）；新会话页的风格按钮在该模式下不显示。
+  原因：工作模式带 shell / 文件 / 网络权限，写作风格不该影响"能不能动手、动哪只手"。
+
 ### 已知限制（能力边界，非缺陷）
 
 - DSH 的 `LlmCallConfig` 只暴露 `temperature / maxTokens / stop`：上游的 `top_p`、

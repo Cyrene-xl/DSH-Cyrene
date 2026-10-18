@@ -331,6 +331,24 @@ node scripts/install.mjs
 - **custom 档**：在 `<DSH_HOME>/cyrene-style-custom.md` 里写任何你想要的风格描述，
   内容会被原样注入（外面仍套那层约束外壳）；想给它一个温度，在 `cyrene-style.json`
   里加 `"customTemperature": 0.8`（0–2）。
+  ⚠️ **只写"怎么写"**，别在里面写"去做什么"——那已经越过风格的边界，也不是本插件
+  能替你兜住的东西。
+
+### 工作模式里**没有**风格（刻意禁用）
+
+风格只挂在**对话模式**；工作模式不挂 —— 与上游一致（work / code 本来就不注入风格）。
+这不是"少做一个功能"，而是一条安全约定：
+
+- 工作模式带 shell / 文件 / 网络这些**真能动东西**的工具。一份写作风格（比如病娇）
+  配上权限，就是"越权操作"的诱因；
+- 所以有**两道保险**：预设层面工作模式不挂这个插件；`style.js` 的
+  `DISABLED_PRESETS` 里也写着 `cyrene-work` —— 万一将来被误挂进去，运行时会读会话的
+  `agent-preset/selected` 事件，自己拒掉（风格文本和温度**都不动**）；
+- 新会话页的风格按钮在工作模式下**不显示**，避免"点了没反应"的假入口。
+
+要改这条约定，得同时改两处并跑测试：`preset/cyrene-work/agent.cordis.yml`（别挂进来）、
+`style.js` 的 `DISABLED_PRESETS`。`tests/preset.test.mjs` 与
+`tests/style.test.mjs` 各有一条断言守着，改错了会红。
 
 ### 两条能力边界（不是没做，是做不到）
 

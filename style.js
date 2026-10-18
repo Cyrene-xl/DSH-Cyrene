@@ -69,6 +69,47 @@ export const STYLES = Object.freeze({
 const DEFAULT_STYLE = 'default'
 
 /**
+ * 在这些预设里**禁用风格**。
+ *
+ * 为什么单独一条：风格只改"怎么说"，但它毕竟是往提示词里塞话；而工作模式带
+ * shell / 文件 / 网络这些能真正动东西的工具，一份写作风格（比如病娇）配上权限
+ * 就是"越权操作"的诱因。上游本来也不给 work / code 注入风格，这里是第二道保险
+ * —— 就算哪天有人把本插件误挂到工作模式，运行时也会自己拒掉。
+ */
+const DISABLED_PRESETS = Object.freeze(['cyrene-work'])
+
+/**
+ * 从会话日志里取当前预设 id（取最后一次 `agent-preset/selected`）。
+ * @param session - 会话对象。
+ * @returns 预设 id；拿不到返回空串。
+ */
+export function presetIdOf(session) {
+  try {
+    const events = session?.snapshotEvents?.()
+    if (!Array.isArray(events)) return ''
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i]
+      if (event?.type !== 'agent-preset/selected') continue
+      const id = event?.data?.agentPreset
+      if (typeof id === 'string' && id !== '') return id
+    }
+  } catch {
+    /* 读不到就当未知，交给调用方决定 */
+  }
+  return ''
+}
+
+/**
+ * 这个预设下是否禁用风格。
+ * @param presetId - 预设 id（`presetIdOf()` 的结果）。
+ * @param disabled - 禁用清单，默认 `DISABLED_PRESETS`。
+ * @returns 是否禁用。
+ */
+export function isStyleDisabled(presetId, disabled = DISABLED_PRESETS) {
+  return typeof presetId === 'string' && presetId !== '' && disabled.includes(presetId)
+}
+
+/**
  * 判断是不是合法档位名。
  * @param value - 任意值。
  * @returns 是否合法。
@@ -269,6 +310,7 @@ function listStyles(state, sessionId) {
  * @param config - 可选覆盖：`storePath` / `dir` / `customPath`（测试与自用改路径）。
  */
 export function apply(ctx, config = {}) {
+  const disabledPresets = Array.isArray(config.disabledPresets) ? config.disabledPresets : DISABLED_PRESETS
   const storePath = config.storePath || join(HOME, 'cyrene-style.json')
   const styleDir = config.dir || join(HERE, 'styles')
   const customPath = config.customPath || join(HOME, 'cyrene-style-custom.md')
@@ -279,7 +321,9 @@ export function apply(ctx, config = {}) {
     // 常驻世界书是 140；上游顺序里风格在常驻世界书之前。
     order: 130,
     text: (context) => {
-      const sessionId = context?.agent?.session?.id ?? ''
+      const session = context?.agent?.session
+      if (isStyleDisabled(presetIdOf(session), disabledPresets)) return ''
+      const sessionId = session?.id ?? ''
       const state = readState(storePath)
       const styleId = resolveStyle(state, sessionId)
       return buildStyleBlock(readStyleText(styleId, { dir: styleDir, customPath }))
@@ -290,7 +334,9 @@ export function apply(ctx, config = {}) {
   ctx.on('agent/request', async (payload, next) => {
     const callConfig = await next()
     if (callConfig === null || typeof callConfig !== 'object') return callConfig
-    const sessionId = payload?.agent?.session?.id ?? ''
+    const session = payload?.agent?.session
+    if (isStyleDisabled(presetIdOf(session), disabledPresets)) return callConfig
+    const sessionId = session?.id ?? ''
     const state = readState(storePath)
     const temperature = temperatureFor(resolveStyle(state, sessionId), state)
     // default 档 / custom 未设温度：**原样返回**，不要写成 temperature: undefined
