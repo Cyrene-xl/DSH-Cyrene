@@ -132,6 +132,9 @@ guarded('预设：表达风格只挂对话模式 —— 工作模式禁用（安
     !workIds.includes('cyrene-style'),
     '工作模式不能挂 cyrene-style —— 风格在工作模式里是刻意禁用的',
   );
+  // 场景开关同理：它是"聊天里的扮演"，工作模式（带工具、面对任务）不该被旁白体干扰。
+  assert.ok(chatIds.includes('cyrene-scene'), '对话模式应该挂 cyrene-scene');
+  assert.ok(!workIds.includes('cyrene-scene'), '工作模式不能挂 cyrene-scene');
 });
 
 guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允许已知附加项', () => {

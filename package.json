@@ -30,6 +30,7 @@
     "worldbook/",
     "styles/",
     "style.js",
+    "scene.js",
     "cordis.patch.yml",
     "plugin.json",
     "dsh.plugin.json",
@@ -49,7 +50,8 @@
     "./worldbook/": "./worldbook/",
     "./plugin.json": "./plugin.json",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./style": "./style.js"
+    "./style": "./style.js",
+    "./scene": "./scene.js"
   },
   "dsh": {
     "id": "dsh-cyrene",
@@ -64,7 +66,7 @@
   },
   "scripts": {
     "test": "node --test \"tests/*.mjs\"",
-    "harness:check": "node --check index.js && node --check memory.js && node --check nickname.js && node --check style.js && node --check worldbook/index.mjs && node --check worldbook/parse.mjs && node --check worldbook/match.mjs && node --check worldbook/assemble.mjs",
+    "harness:check": "node --check index.js && node --check memory.js && node --check nickname.js && node --check style.js && node --check scene.js && node --check worldbook/index.mjs && node --check worldbook/parse.mjs && node --check worldbook/match.mjs && node --check worldbook/assemble.mjs",
     "install:preset": "node scripts/install.mjs"
   },
   "engines": {
