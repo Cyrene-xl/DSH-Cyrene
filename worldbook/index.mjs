@@ -337,11 +337,29 @@ export function apply(ctx) {
       //
       // 表现是那个会话再也打不开 —— 排查时只看到"历史加载失败"，看不出跟本插件有关。
       // 这个坑真踩过：3 个会话因此损坏，每条只差这一个字段。
+      //
+      // ⚠️ `source.kind` 必须是 **`plugin:<插件 id>`** 这种"生产者自有"的形态。
+      //
+      // 旧写法是 `{ kind: 'plugin', plugin: '…' }`（会话格式 v3 的写法）。新版 DSH 的
+      // 会话格式（v4）校验会直接拒掉它：
+      //
+      //   SessionFormatError: format v4 message requires a producer-owned source kind
+      //   （判据：typeof kind !== 'string' 或 kind === 'plugin'）
+      //
+      // 而 `plugin:<id>` 正是 harness 自己的迁移器（producerKind()）给第三方插件生成的
+      // 命名，所以新旧两边都认：v3 的断言只要求 kind 是非空字符串，v4 要求它不是裸 'plugin'。
+      //
+      // 症状极具迷惑性：不报插件名、不报文件行，表现是**发消息没反应**；旧版本（如
+      // 0.1.5-rc.2）一切正常，所以本地自测完全发现不了。
+      //
+      // ❌ 也**不要**图省事写成 `runtime-context`：那是 dsh-agent-loop 自己持有的 kind
+      //    （源码里 `isOwned(message) { return message.source.kind === SOURCE }`），
+      //    用它会让 agent-loop 把世界书的内容当成自己的运行时快照去替换/清除。
       const marker = {
         id: randomUUID(),
         role: 'user',
         content: [{ type: 'text', text }],
-        source: { kind: 'plugin', plugin: 'dsh-cyrene/worldbook', form: 'snapshot' }
+        source: { kind: 'plugin:dsh-cyrene/worldbook', form: 'snapshot' }
       };
       return { kind: 'enter', messages: [...decision.messages, marker] };
     },

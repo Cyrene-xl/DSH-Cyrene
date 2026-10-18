@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { parseWorldbookText, parseWorldbookDocs, loadWorldbookDirectory } from '../worldbook/parse.mjs';
 import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE } from '../worldbook/match.mjs';
 import { assembleWorldbook, buildInjection, DEFAULT_FORMAT } from '../worldbook/assemble.mjs';
-import { recentUserTexts, apply as applyWorldbook } from '../worldbook/index.mjs';
+import { lastUserText, recentUserTexts, apply as applyWorldbook } from '../worldbook/index.mjs';
 
 /**
  * 世界书数据目录。默认指向**随包数据**，而不是开发机上的某个路径 ——
@@ -465,7 +465,8 @@ test('注入层：端到端 —— 本轮消息里有触发词，命中块被追
   assert.equal(decision.messages.length, 2, '应在原消息后追加一条');
   const injected = decision.messages[1];
   assert.equal(injected.role, 'user');
-  assert.equal(injected.source.kind, 'plugin');
+  // 生产者自有的 kind（v4 会话格式要求），不是裸 'plugin' —— 详见下面那条专门的回归测试。
+  assert.equal(injected.source.kind, 'plugin:dsh-cyrene/worldbook');
   const text = injected.content.map((b) => b.text).join('');
   assert.ok(text.includes('翁法罗斯之心'), '命中块应含命中的条目');
   assert.ok(text.includes('帝皇权杖'), '命中块应含该条正文');
@@ -487,6 +488,33 @@ test('注入层：追加的消息必须带非空 id —— 否则会话历史会
   assert.equal(typeof injected.id, 'string', 'id 必须是字符串');
   assert.ok(injected.id.length > 0, 'id 不能是空串');
   assert.equal(decision.messages[0].id === injected.id, false, 'id 不能与已有消息重复');
+});
+
+test('注入层：source.kind 必须是 plugin:<id> —— V4 会话格式要求', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, async () => {
+  // 来自另一类真实反馈（会话格式 v4 的用户）：新版 DSH 的校验是
+  //
+  //   SessionFormatError: format v4 message requires a producer-owned source kind
+  //   判据：typeof kind !== 'string' || kind === 'plugin'
+  //
+  // 也就是说 **裸 `kind: 'plugin'`（v3 写法）会被拒**，而症状是"发消息没反应"，
+  // 不报插件名、不报行号。旧版本（0.1.5-rc.2）根本不校验，本地自测一切正常 ——
+  // 所以这条只能靠断言守，不能靠跑一遍看它灵不灵。
+  const { ctx, listeners } = mockCtx();
+  applyWorldbook(ctx);
+  const decision = await runPreStep(listeners, [userMsg('你还记得翁法罗斯之心吗')], fakeSession([]));
+  assert.equal(decision.messages.length, 2, '前提：这条消息确实触发了注入');
+  const kind = decision.messages[1].source.kind;
+  assert.equal(kind, 'plugin:dsh-cyrene/worldbook', `必须是 plugin:<id>，实际是 ${kind}`);
+  assert.notEqual(kind, 'plugin', 'v4 会拒掉裸 plugin —— 这是旧写法');
+  assert.notEqual(
+    kind,
+    'runtime-context',
+    'runtime-context 是 dsh-agent-loop 自己持有的 kind，用它会让我们注入的内容被当成它的运行时快照替换/清除',
+  );
+
+  // 换了 kind 之后必须仍然**不算**真实用户消息，否则注入块会被拿去匹配触发词、
+  // 自我循环。语料过滤是白名单（kind === 'user'），这里是防它被改回黑名单。
+  assert.equal(lastUserText([decision.messages[1]]), '', '注入块不能被当成用户语料');
 });
 
 test('注入层：无关闲聊不追加任何消息', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, async () => {

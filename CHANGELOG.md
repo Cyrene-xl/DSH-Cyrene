@@ -4,6 +4,31 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.3.2] — 2026-10-16
+
+### 修复
+
+**新版 DSH 上「发消息没反应」（会话格式 v4 拒收消息来源）**
+
+- **现象**：装好之后能选到模式，但**发消息没有任何反应**；没有任何报错指向本插件。
+  旧版本 DSH（如 0.1.5-rc.2）上一切正常 —— 所以自己测是测不出来的。
+- **原因**：世界书的命中块是一条手写的消息描述符，`source.kind` 写的是 v3 的裸
+  `'plugin'`。会话格式 v4 要求「生产者自有」的 kind（`plugin:<插件 id>`），于是整条
+  消息被校验拒掉：
+  `SessionFormatError: format v4 message requires a producer-owned source kind`。
+- **修法**：改为 `kind: 'plugin:dsh-cyrene/worldbook'` —— 这是 harness 自己的迁移器
+  （`producerKind()`）给第三方插件生成的形态，新旧两个版本都接受。
+- **已经装了的怎么办**：更新代码后**完全退出 DSH 再启动**。JS 模块替换必须重启进程
+  才生效，热重载读到的仍是旧代码。
+- ⚠️ 别换成 `runtime-context`：那是 `dsh-agent-loop` 自己持有的 kind，用它会让我们
+  注入的内容被当成它的运行时快照，进而被替换/清除。详见
+  [`docs/pitfalls.md`](./docs/pitfalls.md) 第七节。
+
+### 测试
+
+- 单元测试 73 → **74** 条。新增一条守 `source.kind`：必须是 `plugin:<id>`、不能是裸
+  `plugin`、也不能是 `runtime-context`，且注入块不能被当成真实用户语料。
+
 ## [0.3.1] — 2026-10-06
 
 ### 修复

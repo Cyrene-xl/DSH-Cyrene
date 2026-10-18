@@ -159,3 +159,35 @@ function createMessage(input) {
 
 > 已损坏的会话可以离线修：逐帧解压，给缺 id 的那条补一个 `randomUUID()`，
 > 只重写含它的那一帧，其余帧原样保留。修完要逐条比对，确认除 `id` 外**零差异**。
+
+## 七、手写消息的 `source.kind` 必须是 `plugin:<id>`，不能是裸 `plugin`
+
+紧接着上一条，同一个 `marker` 描述符还有第二个字段会静默失败。
+
+DSH 的**会话格式 v4** 对消息来源有一道校验：
+
+```
+SessionFormatError: format v4 message requires a producer-owned source kind
+判据：typeof source.kind !== 'string' || source.kind === 'plugin'
+```
+
+也就是说 `{ kind: 'plugin', plugin: '名字' }` 这套 **v3 的写法会被直接拒掉**。
+生产者的正确形态是 `plugin:<插件 id>` —— 这正是 harness 自己的迁移器
+（`producerKind()`）给第三方插件生成的命名：
+
+```js
+source: { kind: 'plugin:dsh-cyrene/worldbook', form: 'snapshot' }
+```
+
+**为什么难发现**：旧版本（0.1.5-rc.2）的 `assertMessageEventShape` 对 `user/message`
+只要求 `kind` 是**非空字符串**，所以裸 `plugin` 在旧版本上一切正常 —— 本地自测
+完全跑不出问题。到了 v4，症状是**发消息没反应**：不报插件名、不报文件行，用户
+只会觉得"这个预设坏了"。
+
+**不要换成 `runtime-context`**：那是 `dsh-agent-loop` 自己持有的 kind
+（源码里 `isOwned(message) { return message.source.kind === SOURCE }`），
+用它会让我们注入的内容被当成 agent-loop 的运行时快照，进而被**替换/清除**。
+
+`tests/worldbook.test.mjs` 里有一条专门守着它 —— 断言 kind 等于 `plugin:dsh-cyrene/worldbook`、
+不等于 `plugin`、也不等于 `runtime-context`，并且确认注入块**不会**被当成真实用户语料
+（过滤是白名单 `kind === 'user'`，改成黑名单就会自我循环）。
