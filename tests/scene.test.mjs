@@ -9,8 +9,11 @@ import assert from 'node:assert/strict'
 
 import {
   EXIT_MARKER,
+  FORMS,
   apply,
   classifyScene,
+  extractFormRequest,
+  formBlock,
   enterMarker,
   extractScene,
   isSceneLike,
@@ -28,8 +31,14 @@ const userMsg = (text) => ({
 /** 假 ctx：捕获 agent/pre-step。 */
 function mockCtx() {
   const listeners = []
-  const ctx = { on: (name, fn) => { if (name === 'agent/pre-step') listeners.push(fn) } }
-  return { ctx, listeners }
+  const contexts = []
+  const tools = []
+  const ctx = {
+    systemPrompt: { context: (spec) => contexts.push(spec) },
+    on: (name, fn) => { if (name === 'agent/pre-step') listeners.push(fn) },
+    inject: (_deps, cb) => { cb({ tools: { register: (tool) => tools.push(tool) } }) }
+  }
+  return { ctx, listeners, contexts, tools }
 }
 
 /** 跑一轮 pre-step，返回它给出的 decision。 */
@@ -181,6 +190,68 @@ test('开关：enabled=false 时完全不动', async () => {
   apply(ctx, { enabled: false })
   const out = await step(listeners[0], [userMsg('（雨夜）你还记得吗')])
   assert.equal(out.messages.length, 1)
+})
+
+// ───────────────────────── 形态切换 ─────────────────────────
+
+test('形态：显式说法能解析（括号里的动作指令也算）', () => {
+  assert.deepEqual(extractFormRequest('（你变成迷迷）'), { id: 'mimi', label: '迷迷' })
+  assert.deepEqual(extractFormRequest('变回小昔涟吧'), { id: 'small', label: '小昔涟' })
+  assert.deepEqual(extractFormRequest('切换成大昔涟'), { id: 'big', label: '大昔涟' })
+  assert.deepEqual(extractFormRequest('现在你是迷迷了'), { id: 'mimi', label: '迷迷' })
+  assert.deepEqual(extractFormRequest('用大昔涟的样子说话'), { id: 'big', label: '大昔涟' })
+  assert.deepEqual(extractFormRequest('恢复原来的样子'), { id: '', label: '默认形态' })
+  assert.equal(extractFormRequest('今天天气不错'), null)
+  assert.equal(extractFormRequest('迷迷是谁'), null, '只提名字不算切换')
+  assert.equal(extractFormRequest(''), null)
+})
+
+test('形态：注入块只在有形态时出现，且写明"人格不变"', () => {
+  assert.equal(formBlock(''), '')
+  assert.equal(formBlock('unknown'), '')
+  assert.ok(formBlock('mimi').includes('【当前形态：迷迷】'))
+  assert.ok(formBlock('big').includes('【当前形态：大昔涟】'))
+  assert.ok(formBlock('small').includes('人格内核不变'))
+  for (const id of Object.keys(FORMS)) {
+    assert.ok(formBlock(id).includes('不要解释「我在切换形态」'))
+  }
+})
+
+test('形态：切了之后按会话注入，换会话不受影响', async () => {
+  const { ctx, listeners, contexts } = mockCtx()
+  apply(ctx)
+  const spec = contexts.find((c) => c.name === 'cyrene:form')
+  assert.ok(spec, '必须注册 cyrene:form 上下文')
+  assert.equal(spec.order, 125, '要夹在称呼 120 与风格 130 之间')
+
+  const agentOf = (id) => ({ agent: { session: { id } } })
+  assert.equal(spec.text(agentOf('a')), '', '默认形态不注入')
+
+  await step(listeners[0], [userMsg('（你变成迷迷）')], 'a')
+  assert.ok(spec.text(agentOf('a')).includes('【当前形态：迷迷】'), '本轮就应注入')
+  assert.equal(spec.text(agentOf('b')), '', '别的会话不受影响')
+
+  await step(listeners[0], [userMsg('恢复原来的样子')], 'a')
+  assert.equal(spec.text(agentOf('a')), '', '恢复后不再注入')
+})
+
+test('形态：工具 set_form 处理暗示（拿得到会话 id）', () => {
+  const { ctx, tools, contexts } = mockCtx()
+  apply(ctx)
+  const tool = tools.find((t) => t.name === 'set_form')
+  assert.ok(tool, '必须注册 set_form')
+  assert.ok(tool.description.includes('迷迷') && tool.description.includes('大昔涟'))
+
+  const ok = tool.execute({ form: '迷迷' }, { agent: { session: { id: 'x' } } })
+  assert.ok(ok.includes('迷迷'))
+  const spec = contexts.find((c) => c.name === 'cyrene:form')
+  assert.ok(spec.text({ agent: { session: { id: 'x' } } }).includes('【当前形态：迷迷】'))
+
+  const bad = tool.execute({ form: '巨龙' }, { agent: { session: { id: 'x' } } })
+  assert.ok(bad.includes('没有这个形态'))
+
+  const noSession = tool.execute({ form: 'big' }, {})
+  assert.ok(noSession.includes('拿不到当前会话'))
 })
 
 test('非 enter 的决策原样返回（别的插件接管了 pre-step 时不抢）', async () => {

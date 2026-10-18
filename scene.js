@@ -107,6 +107,89 @@ export function extractScene(text) {
 }
 
 /**
+ * 三形态。**人格内核不变，只变"身体与说话的方式"** —— 这是世界书「三形态同一性」
+ * 那一条的原话：迷迷 / 昔涟 / 德谬歌是同一个存在的不同切面，不是三个人格。
+ *
+ * 只收用户点名的三种；德谬歌属于完整形态，等同人设说话即可，不单列。
+ */
+export const FORMS = Object.freeze({
+  mimi: {
+    label: '迷迷',
+    text: [
+      '- 样子：小小的、孩童模样，能窝在对方怀里或肩上。',
+      '- 说话：句子短、词简单，会重复对方的话；遇到不懂的会直接问「那是什么呀」。',
+      '- 自称：「迷迷」和「我」混着用。',
+      '- 行为：跟着走、牵着、蹭一蹭；不懂就撒娇，不讲道理、不长篇。'
+    ].join('\n')
+  },
+  small: {
+    label: '小昔涟',
+    text: [
+      '- 样子：少女形态，个子不高；会踮脚、抱手臂、靠过去。',
+      '- 说话：轻快、直白，撒娇更多；「人家」出现得比平常频繁，♪ 自然。',
+      '- 行为：情绪写在脸上，喜欢小动作（整理衣角、牵住手腕）；不端着。'
+    ].join('\n')
+  },
+  big: {
+    label: '大昔涟',
+    text: [
+      '- 样子：成年、端庄典雅，站在那里的分量就不一样。',
+      '- 说话：慢、稳、句子完整；几乎不用「人家」，撒娇收起来，温柔是收着给的。',
+      '- 行为：克制的靠近（抚发、注视、握住手），会用岁月 / 记忆 / 因果这类词，但不长篇说教。'
+    ].join('\n')
+  }
+})
+
+/** 形态名 → 内部 id。用户说的是中文名。 */
+const FORM_ALIASES = new Map([
+  ['迷迷', 'mimi'],
+  ['小昔涟', 'small'],
+  ['小昔莲', 'small'],
+  ['大昔涟', 'big'],
+  ['大昔莲', 'big']
+])
+
+/**
+ * 从用户这句话里解析**显式**的形态切换。
+ *
+ * 只认带切换动词的说法：「变成迷迷」「变回小昔涟」「切换成大昔涟」「现在你是迷迷」
+ * 「用大昔涟的样子」。括号里的动作指令（「（你变成迷迷）」）同样能命中 —— 这里扫全文。
+ * 「恢复原样 / 变回来」→ 返回空串（回到默认形态）。
+ * @param text - 用户这一轮说的话。
+ * @returns `{ id, label }`；没有明确切换返回 null。
+ */
+export function extractFormRequest(text) {
+  const source = String(text ?? '').replace(/\s+/g, ' ').trim()
+  if (source === '') return null
+  // 先看"恢复"：它优先于切换
+  if (/(?:恢复|变回|回到)(?:原来|原本|正常|平常|之前)?的?(?:样子|形态)?/.test(source)
+      && !/变回(?:迷迷|小昔涟|大昔涟)/.test(source)) {
+    return { id: '', label: '默认形态' }
+  }
+  const match = /(?:变成|变回|变作|化为|切换成|切换为|切换至|回到|成为|现在你是|你就是|用)\s*(?:(?:小|大|小小的|小小的)?)\s*(迷迷|小昔涟|小昔莲|大昔涟|大昔莲)/u.exec(source)
+  if (!match) return null
+  const id = FORM_ALIASES.get(match[1])
+  if (id === undefined) return null
+  return { id, label: FORMS[id].label }
+}
+
+/**
+ * 形态注入块。只在有形态时返回非空 —— 默认形态不占上下文。
+ * @param formId - 形态 id（'' 表示默认）。
+ * @returns 注入文本。
+ */
+export function formBlock(formId) {
+  const id = String(formId ?? '')
+  if (id === '' || FORMS[id] === undefined) return ''
+  return [
+    `【当前形态：${FORMS[id].label}】`,
+    FORMS[id].text,
+    '- 形态只改变身体与说话方式，人格内核不变；',
+    '- 不要解释「我在切换形态」，也不要问对方「这样对不对」，直接以这个形态说话和行动。'
+  ].join('\n')
+}
+
+/**
  * 取本轮最后一条**真实用户消息**（`source.kind === 'user'`）。
  * 插件自己注入的标记也算 user 角色，所以必须按 source 过滤，否则会把标记当用户输入。
  * @param messages - pre-step 收到的本轮消息数组。
@@ -169,20 +252,73 @@ export const EXIT_MARKER = [
  * @param ctx - 插件上下文。
  * @param config - 可选 `trace`：把状态变化打到控制台。
  */
+export const inject = ['systemPrompt']
+
 export function apply(ctx, config = {}) {
   /** 每个会话当前处于哪种模式：'chat' | 'scene'。没记录过就是 chat。 */
   const modes = new Map()
+  /** 每个会话当前的**形态**：'' = 默认（不注入），'mimi' / 'small' / 'big'。 */
+  const forms = new Map()
+
+  // 形态注入块：只在有形态时出现，默认形态不占上下文。
+  // order 125 夹在称呼规则（120）与风格（130）之间 —— 形态先于语气。
+  ctx.systemPrompt.context({
+    name: 'cyrene:form',
+    order: 125,
+    text: (context) => formBlock(forms.get(String(context?.agent?.session?.id ?? '')) ?? '')
+  })
+
+  // 形态切换的「暗示」入口：模型判断后调用。显式说法在下面的 pre-step 里直接处理。
+  ctx.inject(['tools'], (scope) => {
+    scope.tools.register({
+      name: 'set_form',
+      description:
+        '按对方的意思切换你的形态：mimi（迷迷，懵懂孩童模样）、small（小昔涟，少女）、'
+        + 'big（大昔涟，端庄典雅）。当对方明确要求切换，或用暗示（「变小一点好不好」'
+        + '「变回小时候的样子」）时使用。形态只改变身体与说话方式，人格不变。',
+      parameters: {
+        type: 'object',
+        properties: {
+          form: { type: 'string', description: 'mimi / small / big，或中文 迷迷 / 小昔涟 / 大昔涟' }
+        },
+        required: ['form']
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }]
+      },
+      execute: (args, exec) => {
+        const sessionId = String(exec?.agent?.session?.id ?? '')
+        const raw = String(args?.form ?? '').trim()
+        const id = FORM_ALIASES.get(raw) ?? (FORMS[raw] !== undefined ? raw : '')
+        if (id === '') return '没有这个形态。可选：mimi（迷迷）、small（小昔涟）、big（大昔涟）。'
+        if (sessionId === '') return '拿不到当前会话，形态没有切换。'
+        forms.set(sessionId, id)
+        return `形态已切换为「${FORMS[id].label}」。从现在开始按这个形态说话和行动。`
+      }
+    })
+  })
 
   ctx.on(
     'agent/pre-step',
     async (payload, next) => {
       const decision = await next()
       if (decision?.kind !== 'enter') return decision
-      if (config.enabled === false) return decision
 
       const session = payload?.agent?.session
       const sessionId = String(session?.id ?? payload?.agent?.id ?? '')
       const text = latestUserText(payload?.messages)
+
+      // 形态切换独立于场景开关：说了就切，哪怕这轮没开场景。
+      if (text !== '') {
+        const form = extractFormRequest(text)
+        if (form !== null && (forms.get(sessionId) ?? '') !== form.id) {
+          forms.set(sessionId, form.id)
+          if (config.trace) console.log(`[cyrene-scene] 形态 → ${form.label}`)
+        }
+      }
+
+      if (config.enabled === false) return decision
       if (text === '') return decision
 
       const { found, actions, scenes } = classifyScene(text)
