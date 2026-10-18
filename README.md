@@ -1,4 +1,6 @@
 > **This project is an open-source preset plugin for DeepSeek Harness. It does NOT contain any game assets (Live2D models, artwork, audio). The bundled persona text is adapted from the open-source Cyrene-Agent project (MIT, Copyright (c) 2026 Playa). Cyrene (昔涟) and Honkai: Star Rail belong to HoYoverse/miHoYo. This is an unofficial fan tool — non-commercial use only.**
+>
+> 使用前请读 **[风险提醒](#风险提醒)** —— 自定义风格与角色扮演场景都会影响模型输出，且与上游人设存在已知冲突。
 
 ---
 
@@ -436,6 +438,47 @@ node scripts/install.mjs
 - [dsh-universal-worldbook](https://github.com/TritiumWang/dsh-universal-worldbook)
 
 细节见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) 第 1 节与第 7 节。
+
+## 风险提醒
+
+用之前把这几条看完——它们都对应真实会发生的情况，不是免责话术。
+
+### 1. 自定义风格的内容由你自己负责
+
+`custom` 档会把你写进 `<DSH_HOME>/cyrene-style-custom.md` 的文本**原样注入**提示词。
+本仓库不提供、也不推荐任何激进风格；`customTier`（`1` / `2`）只是一个**中性的强度开关**，
+档位含义由你自己的文件定义。
+
+- 不要把**同人作品原文**整段贴进去当风格：那是别人的文字，版权不属于你，也不属于本项目；
+- 不要在风格文件里写"去执行某个操作"——那已经越过风格的边界；
+- 风格只能影响**措辞**，改不了模型与平台的安全策略。想靠提示词"解禁"是做不到的。
+
+### 2. 与上游人设的冲突是**预期行为**
+
+对话模式的人设逐字来自 Cyrene-Agent，其中 `soul.md` 明确写着「**偏爱不等于占有**」
+「不要自动宣称用户只属于你」，并在"避免生成的伪人格"里点名「**占有式恋人**」。
+
+所以你如果写的是**独占 / 嫉妒 / 压迫感**类的风格，两套指令会在上下文里互相拉扯，
+表现是"时松时紧"——**这不是 bug**。本项目的选择是：不改上游正文，让风格文件自己收敛
+（比如把独占写成"我会记得"而不是"你不许走"）。要更稳只能改人设，而本项目不替你做这件事。
+
+### 3. 角色扮演场景会"照做"
+
+场景模式里，括号内容会被当作**场景描述**或**给你的动作指令**执行。因此：
+
+- 别在括号里写真实世界里的危险要求（如"你去把某某删了"）——她可能真的按人设去理解；
+- 工作模式**不挂**场景与风格插件（代码级禁用，有测试守着），也不建议手动挂过去：
+  带 shell / 文件权限的模式不该被旁白体与写作风格牵着走；
+- 入戏是工具属性，不是关系替代。AI 的输出不具备真实情感或意图，不能替代现实中的
+  社交关系与专业帮助。
+
+### 4. 版权与商用
+
+- 人设文本与世界书数据来自 Cyrene-Agent（MIT）；风格文件来自上游 `prompts/styles/`；
+  角色 IP 归 HoYoverse / 米哈游。**含角色 IP 的衍生物禁止商用**，详见
+  [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)；
+- 本仓库**不分发**任何美术资源、表情包、壁纸与同人文本；需要就自己装第三方插件，
+  并遵守对方的许可。
 
 ## 推荐搭配（第三方插件，均不在本仓库内）
 
