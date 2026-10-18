@@ -113,11 +113,15 @@ export function readState(file) {
         sessions[id] = { style: entry.style, at: Number.isFinite(entry.at) ? entry.at : 0 }
       }
     }
-    const custom = Number(raw.customTemperature)
+    // ⚠️ 不能写 `Number(raw.customTemperature)`：null → 0，而 0 是**合法**温度
+    // （确定性采样）。那样一来"没配温度"会被读成"温度=0"，custom 档会静默变成
+    // 全确定输出。只接受真正的 number。
+    const custom = raw.customTemperature
+    const customOk = typeof custom === 'number' && Number.isFinite(custom) && custom >= 0 && custom <= 2
     return {
       version: 1,
       default: isStyleId(raw.default) ? raw.default : DEFAULT_STYLE,
-      customTemperature: Number.isFinite(custom) && custom >= 0 && custom <= 2 ? custom : null,
+      customTemperature: customOk ? custom : null,
       sessions
     }
   } catch {

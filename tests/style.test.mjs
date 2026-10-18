@@ -154,6 +154,24 @@ test('状态：非法档位、非法时间戳在读取时被过滤掉', () => {
   assert.deepEqual(state.sessions.good, { style: 'lively', at: 123 })
 })
 
+test('状态：customTemperature 的 null / 0 / 字符串三态必须分清', () => {
+  // 这条是一个真实 bug 的回归：以前用 Number(raw.customTemperature) 归一，
+  // null 会被转成 0，而 0 是**合法**温度（确定性采样）—— 于是"没配温度"被读成
+  // "温度=0"，custom 档静默变成全确定输出。
+  const file = freshStore('custom-temp')
+  writeFileSync(file, JSON.stringify({ customTemperature: null }), 'utf8')
+  assert.equal(readState(file).customTemperature, null, 'null 依然是"没配"')
+
+  writeFileSync(file, JSON.stringify({ customTemperature: 0 }), 'utf8')
+  assert.equal(readState(file).customTemperature, 0, '0 是合法温度，必须保留')
+
+  writeFileSync(file, JSON.stringify({ customTemperature: '0.8' }), 'utf8')
+  assert.equal(readState(file).customTemperature, null, '字符串不算配了温度')
+
+  writeFileSync(file, JSON.stringify({ customTemperature: 2.5 }), 'utf8')
+  assert.equal(readState(file).customTemperature, null, '越界仍是非法')
+});
+
 test('状态：写进去能读回来', () => {
   const file = freshStore('roundtrip')
   const state = chooseStyle(readState(file), 'sess-1', 'sweet', 1000)
