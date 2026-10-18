@@ -34,7 +34,10 @@
 
 ```powershell
 # 1. 装插件本体（在 DSH 的 profile 里）
-dsh plugin --profile <你的 profile> add dsh-cyrene
+#    ⚠️ 别写 `add dsh-cyrene` —— npm 上那个同名包是别人的「主题 + 桌宠」插件，
+#    装了之后本项目要的 ./nickname / ./memory / ./worldbook / ./style 全都解析不到，
+#    表现为设置里那几行 never started、预设标「加载失败」。
+dsh plugin --profile <你的 profile> add link:D:/你的路径/DSH-Cyrene
 
 # 2. 装预设
 node scripts\install.mjs

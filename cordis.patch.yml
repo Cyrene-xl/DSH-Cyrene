@@ -1,6 +1,6 @@
 # dsh-cyrene bundle patch
 #
-# 只做一件事：把宿主半体挂进 loader，让 `dsh plugin --profile <name> add dsh-cyrene`
+# 只做一件事：把宿主半体挂进 loader，让 `dsh plugin --profile <name> add link:<本仓库路径>`
 # 之后 DSH 能加载到这个包。
 #
 # 刻意保持"纯 insert(id/name)"形式 —— 这是可热挂载的，不需要重启即可生效。

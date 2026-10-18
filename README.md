@@ -85,11 +85,31 @@
 
 ### 1. 装插件本体
 
+> ### ⚠️ 别用 `dsh plugin --profile <你的 profile> add dsh-cyrene`
+>
+> npm 上有一个**同名**的 `dsh-cyrene`，那是**别人的**「昔涟主题 + Live2D 桌宠」插件，
+> 它的 `exports` 里只有 `.` 和 `./client` —— **没有**本项目需要的
+> `./nickname` / `./memory` / `./worldbook` / `./style`。
+>
+> 装错之后的现象很有迷惑性：预设能选到，但 `设置 → 内置插件` 里那几行全是
+> `never started`，预设标「加载失败」——**看着像装上了，其实一个都没起来**。
+> 详见下面的[排查](#排查)。
+
+从**仓库**装才装得到本项目（`dsh plugin` 只是 pnpm 的转发，`link:` 指本地目录，不需要联网）：
+
 ```bash
-dsh plugin --profile <你的 profile> add dsh-cyrene
+# 1) 先拿到仓库
+git clone https://github.com/Cyrene-xl/DSH-Cyrene
+#    或者从 Releases 页下载 zip 解压
+
+# 2) 装进「你正在用的那个 profile」
+dsh plugin --profile <你的 profile> add link:/你的路径/DSH-Cyrene
+#    Windows:  link:D:/你的路径/DSH-Cyrene
+
+# 3) 重启 DSH（新加的行要重新组合 profile 才生效）
 ```
 
-`cordis.patch.yml` 是纯 `insert` 形式，可热挂载，通常不需要重启。
+`cordis.patch.yml` 是纯 `insert` 形式，不往机器上写任何硬编码路径。
 
 ### 2. 装预设（必须单独做一步）
 
@@ -467,6 +487,12 @@ dsh-cyrene/
 **装了插件但模式选择器里没有新选项** —— 预设没装。跑 `scripts/install.*`，
 确认 `~/.dsh/.agent-presets/chat/` 与 `~/.dsh/.agent-presets/cyrene-work/` 下
 确实都有 `agent.cordis.yml` 和 `preset.yml`。
+
+**`设置 → 内置插件` 里出现 `never started`（预设显示「加载失败」）** ——
+预设装上了，但**这个 profile 里没有本项目的包**（最常见的是装成了 npm 上同名的
+别人的包）。按「安装」第 1 步从仓库装一次，再重启。
+自查：`~/.dsh/profiles/<你的 profile>/node_modules/dsh-cyrene` 不存在，或者它
+`package.json` 的 `exports` 里没有 `./worldbook`，就是装错了。
 
 **滑块上少了某一档** —— 新建对话页的滑块只在**空白会话**显示，且会话预设一旦
 锁定（发过消息）就随 Hero 一起消失，这是 DSH 的原生行为。
