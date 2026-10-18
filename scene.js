@@ -51,12 +51,32 @@ export function isSceneLike(content) {
 }
 
 /**
- * 从一段文本里抽出所有括号内容。
- * @param text - 用户这一轮说的话。
- * @returns `{ found, scenes }`（`scenes` 为去重后的原文顺序数组）。
+ * 括号内容是不是在描述**你（昔涟）的动作** —— 例如「你亲了我一下」。
+ *
+ * 这类内容不是场景，而是**给角色的动作指令**：用户写「你…」，意思是"你来做这件事"。
+ * 判据偏保守：
+ *   - 以「你」开头；
+ *   - 不以「吗 / 呢 / 嘛 / ？ / ?」结尾（那是问句，不是动作）；
+ *   - 出现动作痕迹：我 / 了 / 把 / 着 / 过 / 给 / 地，或常见动作字。
+ * 「你真好」这种夸奖不算；「你还记得吗」这种问句也不算。
+ * @param content - 括号里的内容。
+ * @returns 是否是一条动作指令。
  */
-export function extractScene(text) {
+export function looksLikeHerAction(content) {
+  const text = String(content ?? '').trim()
+  if (!text.startsWith('你')) return false
+  if (/[吗呢嘛？?]$/.test(text)) return false
+  return /我|了|把|着|过|给|地|亲|抱|牵|摸|吻|拥|笑|哭|坐|站|走|跑|看|听|说|叹|靠|贴|蹭|抚|咬|推|拉|拽|搂/.test(text)
+}
+
+/**
+ * 把括号内容分成两类：给她的动作指令、场景 / 环境。
+ * @param text - 用户这一轮说的话。
+ * @returns `{ found, actions, scenes }`（都是去重后的原文数组）。
+ */
+export function classifyScene(text) {
   const source = String(text ?? '')
+  const actions = []
   const scenes = []
   for (const [open, close] of [FULL, HALF]) {
     let from = 0
@@ -66,11 +86,24 @@ export function extractScene(text) {
       const end = source.indexOf(close, start + 1)
       if (end === -1) break
       const content = source.slice(start + 1, end).trim()
-      if (isSceneLike(content) && !scenes.includes(content)) scenes.push(content)
+      if (isSceneLike(content)) {
+        const bucket = looksLikeHerAction(content) ? actions : scenes
+        if (!bucket.includes(content)) bucket.push(content)
+      }
       from = end + 1
     }
   }
-  return { found: scenes.length > 0, scenes }
+  return { found: actions.length > 0 || scenes.length > 0, actions, scenes }
+}
+
+/**
+ * 从一段文本里抽出所有括号内容。
+ * @param text - 用户这一轮说的话。
+ * @returns `{ found, scenes }`（`scenes` 为去重后的原文顺序数组）。
+ */
+export function extractScene(text) {
+  const { found, actions, scenes } = classifyScene(text)
+  return { found, scenes: [...scenes, ...actions] }
 }
 
 /**
@@ -99,15 +132,30 @@ export function latestUserText(messages) {
  * @param scenes - 抽到的场景描述。
  * @returns 纯文本。
  */
-export function enterMarker(scenes) {
-  return [
-    '【场景模式开启】',
-    '用户这一轮用括号给出了场景 / 动作提示：' + scenes.join(' / ') + '。',
-    '本轮开始按角色扮演场景处理：',
-    '- 括号外的话是他的台词或意图，括号里的是环境与动作；',
-    '- 用「叙述＋对话」推进，动作与环境写清楚，台词保持昔涟的语气；',
-    '- 不要出戏、不要解释规则、不要把这段提示复述出来。'
-  ].join('\n')
+export function enterMarker(items) {
+  const normalized = (Array.isArray(items) ? items : []).map((item) => {
+    if (typeof item === 'string') {
+      return { raw: item, kind: looksLikeHerAction(item) ? 'action' : 'scene' }
+    }
+    return { raw: String(item?.raw ?? ''), kind: item?.kind === 'action' ? 'action' : 'scene' }
+  }).filter((item) => item.raw !== '')
+
+  const actions = normalized.filter((item) => item.kind === 'action').map((item) => item.raw)
+  const scenes = normalized.filter((item) => item.kind === 'scene').map((item) => item.raw)
+
+  const lines = ['【场景模式开启】', '用户这一轮用括号给出了场景 / 动作提示：']
+  if (scenes.length > 0) lines.push('- 场景：' + scenes.join(' / '))
+  if (actions.length > 0) lines.push('- 你的动作：' + actions.join(' / '))
+  lines.push('本轮开始按角色扮演场景处理：')
+  lines.push('- 括号外的话是他的台词或意图；')
+  if (scenes.length > 0) lines.push('- 上面「场景」那条是环境与氛围，用叙述自然带出来；')
+  if (actions.length > 0) {
+    lines.push('- 上面「你的动作」那条是**给你的动作指令**：你要真的做出来，并在回复里用括号写出做完的动作，')
+    lines.push('  格式如：（亲了你一下）—— 动作对象称「你」，不复述他的原句；')
+  }
+  lines.push('- 用「叙述＋对话」推进，台词保持昔涟的语气；')
+  lines.push('- 不要出戏、不要解释规则、不要把这段提示复述出来。')
+  return lines.join('\n')
 }
 
 /** 退出场景时追加的标记。 */
@@ -137,7 +185,7 @@ export function apply(ctx, config = {}) {
       const text = latestUserText(payload?.messages)
       if (text === '') return decision
 
-      const { found, scenes } = extractScene(text)
+      const { found, actions, scenes } = classifyScene(text)
       const nextMode = found ? 'scene' : 'chat'
       const previousMode = modes.get(sessionId) ?? 'chat'
       if (nextMode === previousMode) return decision
@@ -146,7 +194,12 @@ export function apply(ctx, config = {}) {
       const marker = {
         id: randomUUID(),
         role: 'user',
-        content: [{ type: 'text', text: nextMode === 'scene' ? enterMarker(scenes) : EXIT_MARKER }],
+        content: [{
+          type: 'text',
+          text: nextMode === 'scene'
+            ? enterMarker([...scenes.map((raw) => ({ raw, kind: 'scene' })), ...actions.map((raw) => ({ raw, kind: 'action' }))])
+            : EXIT_MARKER
+        }],
         // 与 worldbook 一致：v4 要求生产者自有的 kind，不能写裸 'plugin'。
         source: { kind: 'plugin:dsh-cyrene/scene', form: 'snapshot' }
       }

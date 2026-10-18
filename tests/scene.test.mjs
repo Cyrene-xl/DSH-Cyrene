@@ -10,10 +10,12 @@ import assert from 'node:assert/strict'
 import {
   EXIT_MARKER,
   apply,
+  classifyScene,
   enterMarker,
   extractScene,
   isSceneLike,
-  latestUserText
+  latestUserText,
+  looksLikeHerAction
 } from '../scene.js'
 
 /** 造一条本轮用户消息。 */
@@ -61,6 +63,48 @@ test('抽取：全角 / 半角 / 多段 / 去重 / 未闭合', () => {
   assert.equal(extractScene('没有括号').found, false)
   assert.equal(extractScene('').found, false)
   assert.equal(extractScene(undefined).found, false)
+})
+
+test('动作指令：括号里用「你」说的是她要做的事', () => {
+  assert.equal(looksLikeHerAction('你亲了我一下'), true)
+  assert.equal(looksLikeHerAction('你笑了'), true, '有动作痕迹就算')
+  assert.equal(looksLikeHerAction('你在窗边坐下'), true)
+  assert.equal(looksLikeHerAction('你真好'), false, '单纯夸奖不是动作')
+  assert.equal(looksLikeHerAction('你还记得吗'), false, '问句不是动作')
+  assert.equal(looksLikeHerAction('你愿意听我说吗？'), false)
+  assert.equal(looksLikeHerAction('她亲了我一下'), false, '主语不是「你」')
+  assert.equal(looksLikeHerAction('雨夜'), false)
+  assert.equal(looksLikeHerAction(''), false)
+})
+
+test('动作指令：场景与动作能分开归类', () => {
+  const one = classifyScene('（你亲了我一下）')
+  assert.deepEqual(one.actions, ['你亲了我一下'])
+  assert.deepEqual(one.scenes, [])
+
+  const both = classifyScene('（雨夜，屋里只有一盏灯）（你把我抱住）')
+  assert.deepEqual(both.scenes, ['雨夜，屋里只有一盏灯'])
+  assert.deepEqual(both.actions, ['你把我抱住'])
+  assert.equal(both.found, true)
+
+  assert.equal(classifyScene('没有括号').found, false)
+})
+
+test('动作指令：标记里要写清"照做 + 用括号写出动作"', () => {
+  const marker = enterMarker([{ raw: '你亲了我一下', kind: 'action' }])
+  assert.ok(marker.includes('你的动作：你亲了我一下'))
+  assert.ok(marker.includes('动作指令'))
+  assert.ok(marker.includes('（亲了你一下）'), '要给出格式示例')
+  assert.ok(marker.includes('不复述他的原句'))
+})
+
+test('动作指令：混合输入时场景与动作分别列在标记里', () => {
+  const marker = enterMarker([
+    { raw: '雨夜，屋里只有一盏灯', kind: 'scene' },
+    { raw: '你把我抱住', kind: 'action' }
+  ])
+  assert.ok(marker.includes('- 场景：雨夜，屋里只有一盏灯'))
+  assert.ok(marker.includes('- 你的动作：你把我抱住'))
 })
 
 test('取本轮用户文本：必须按 source 过滤掉插件标记', () => {
