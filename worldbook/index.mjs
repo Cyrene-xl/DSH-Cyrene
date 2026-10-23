@@ -48,7 +48,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadWorldbookDirectory } from './parse.mjs';
+import { loadWorldbookDirectory, worldbookDirectorySignature } from './parse.mjs';
 import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE } from './match.mjs';
 import { assembleWorldbook } from './assemble.mjs';
 
@@ -74,24 +74,69 @@ const DEFAULTS = Object.freeze({
   maxActive: DEFAULT_MAX_ACTIVE,
   /** 扫最近几条用户消息（D0 来自本轮，D1/D2 来自前几轮）。 */
   scanDepth: 3,
-  /** 条目文件的缓存时长；改完世界书不用重启，等这么久即生效。 */
-  cacheTtlMs: 30_000,
   /** 诊断日志开关。默认关；排障时在 <DSH_HOME>/cyrene-worldbook.json 里打开。 */
   trace: false
 });
 
+/** 配置文件的重读间隔：改完最多 2 秒生效，不用重启。 */
+const CONFIG_RECHECK_MS = 2000;
+
 /**
- * 读配置。任何异常都退回默认值 —— 配置坏了不该让对话挂掉。
- * @returns 合并后的配置。
+ * 读配置文件原文；不存在或坏掉都返回 `undefined`（交给 normalizeConfig 兜底）。
+ * @returns 解析后的对象或 undefined。
  */
-function loadConfig() {
+function readConfigFile() {
   try {
-    if (!existsSync(CONFIG_PATH)) return { ...DEFAULTS };
-    const raw = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-    return { ...DEFAULTS, ...(raw && typeof raw === 'object' ? raw : {}) };
+    if (!existsSync(CONFIG_PATH)) return undefined;
+    return JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
   } catch {
-    return { ...DEFAULTS };
+    return undefined;
   }
+}
+
+/**
+ * 把用户配置**归一化**：字段类型不对就退回默认，数值夹到安全区间。
+ *
+ * 之前是 `{ ...DEFAULTS, ...raw }` 直接合并 —— 于是 `"enabled": "false"`（字符串）
+ * 因为真值判断照样开着、`"maxActive": "9"` 会原样传进匹配器。配置文件是给人手改的，
+ * 不能假设类型对。导出是为了单测（纯函数、无副作用）。
+ * @param raw - 解析后的 JSON（可能是 undefined 或任何东西）。
+ * @returns 完整配置对象。
+ */
+export function normalizeConfig(raw) {
+  const src = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  // ⚠️ 不能直接 `Number(value)`：`Number(null) === 0`、`Number('') === 0`，
+  // 于是「没写」会被当成「写成 0」再夹到下限。只接受 number，或非空数字字符串。
+  const int = (value, fallback, min, max) => {
+    const usable = typeof value === 'number'
+      || (typeof value === 'string' && value.trim() !== '');
+    if (!usable) return fallback;
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
+  };
+  return {
+    // 只有显式 false 才关；其它一律按开（世界书是本项目的核心功能，别被错字关掉）
+    enabled: src.enabled !== false,
+    dir: typeof src.dir === 'string' && src.dir.trim() !== '' ? src.dir : DEFAULTS.dir,
+    maxActive: int(src.maxActive, DEFAULTS.maxActive, 1, 50),
+    scanDepth: int(src.scanDepth, DEFAULTS.scanDepth, 1, 5),
+    trace: src.trace === true,
+    assemble: src.assemble !== null && typeof src.assemble === 'object' ? { ...src.assemble } : undefined
+  };
+}
+
+/** 配置缓存：避免每轮读盘，同时保证改完最多 2 秒生效。 */
+let configCache = { at: Number.NEGATIVE_INFINITY, value: null };
+
+/**
+ * 当前配置（带 2 秒缓存）。
+ * @param now - 当前时间戳（测试可注入）。
+ * @returns 归一化后的配置。
+ */
+export function currentConfig(now = Date.now()) {
+  if (configCache.value !== null && now - configCache.at < CONFIG_RECHECK_MS) return configCache.value;
+  configCache = { at: now, value: normalizeConfig(readConfigFile()) };
+  return configCache.value;
 }
 
 /** 追加一行诊断日志；整个吞掉异常。 */
@@ -182,8 +227,7 @@ export const inject = ['systemPrompt'];
  * @param ctx - 主机插件上下文。
  */
 export function apply(ctx) {
-  const config = loadConfig();
-  let cache = { at: 0, entries: [], error: null };
+  let cache = { signature: null, entries: [], error: null };
 
   /**
    * 会话 id → 上一轮注入的命中块文本，用于"内容相同就不重复注入"。
@@ -216,14 +260,18 @@ export function apply(ctx) {
    * @returns 条目数组。
    */
   function entries() {
-    const now = Date.now();
-    if (now - cache.at < config.cacheTtlMs) return cache.entries;
+    const config = currentConfig();
+    const signature = worldbookDirectorySignature(config.dir);
+    // 目录读不到、且上次也读不到 → 复用上次结果，别每轮重试
+    if (signature === '' && cache.signature === '') return cache.entries;
+    // 文件没变 → 复用解析结果
+    if (signature !== '' && signature === cache.signature) return cache.entries;
     try {
       const list = loadWorldbookDirectory(config.dir);
-      cache = { at: now, entries: list, error: null };
+      cache = { signature, entries: list, error: null };
       if (config.trace) logLine(`已载入条目 ${list.length} 条（dir=${config.dir}）`);
     } catch (error) {
-      cache = { at: now, entries: cache.entries, error: String(error?.message ?? error) };
+      cache = { signature, entries: cache.entries, error: String(error?.message ?? error) };
       if (config.trace) logLine(`读取世界书失败：${cache.error}`);
     }
     return cache.entries;
@@ -235,6 +283,7 @@ export function apply(ctx) {
    * @returns 注入文本或空串。
    */
   function staticText() {
+    const config = currentConfig();
     if (!config.enabled) return '';
     try {
       const list = entries();
@@ -256,6 +305,7 @@ export function apply(ctx) {
    * @returns 注入文本或空串。
    */
   function hitText(messages, session) {
+    const config = currentConfig();
     if (!config.enabled) return '';
     try {
       const list = entries();
@@ -317,7 +367,7 @@ export function apply(ctx) {
 
       // 内容没变就不重复注入 —— 否则同一话题连着聊几轮，同样的块会被塞进历史好几遍。
       if (sessionId !== '' && lastHit.get(sessionId) === text) {
-        if (config.trace) logLine('命中块跳过：与上一轮完全相同');
+        if (currentConfig().trace) logLine('命中块跳过：与上一轮完全相同');
         return decision;
       }
       if (sessionId !== '') trackHit(sessionId, text);
@@ -373,5 +423,6 @@ export function apply(ctx) {
   // 挂载失败** —— 表现是「纯文本对话模式」不可用，连新建会话都会出问题。
   // 真要发布服务，得用 isolate realm，或把插件搬到 host composition（profile 级）。
 
-  if (config.trace) logLine(`apply 完成｜dir=${config.dir}（条目缓存待首次装配时载入）`);
+  const applied = currentConfig();
+  if (applied.trace) logLine(`apply 完成｜dir=${applied.dir}（条目缓存待首次装配时载入）`);
 }

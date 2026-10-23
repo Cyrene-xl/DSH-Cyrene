@@ -34,7 +34,7 @@
  * 只靠 `.gitattributes`：用户自己的世界书文件、zip 下载、在 Windows 上手改过的
  * 数据都会是 CRLF，解析层不能假设行尾。
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 /** 字段名 → 内部键。同时接受上游用过的几种别名。 */
 const FIELD_ALIASES = new Map([
@@ -206,4 +206,32 @@ export function loadWorldbookDirectory(dir, readDir = readdirSync) {
     text: readFileSync(`${dir}/${name}`, 'utf8')
   }));
   return parseWorldbookDocs(docs);
+}
+
+/**
+ * 目录签名：文件名 + mtime + size 拼起来。
+ *
+ * 注入层用它判断"世界书文件有没有变过"：没变就复用上次解析结果；变了**下一轮立刻重载**。
+ * 比固定 TTL 好 —— 不用为了改一个错别字等 30 秒，也不用每轮重新解析。
+ *
+ * 三种情况要区分开：
+ *   - 目录读不到 → 返回空串（调用方视为"无法判定"，复用上次结果，别每轮重试）；
+ *   - 目录存在但没有 .md → 返回 `__empty__`（稳定值，不能和"读不到"混成同一个空串）；
+ *   - 正常 → 各文件条目的拼接。
+ * @param dir - 目录路径。
+ * @returns 签名串。
+ */
+export function worldbookDirectorySignature(dir) {
+  try {
+    const files = readdirSync(dir)
+      .filter((name) => name.endsWith('.md'))
+      .sort()
+      .map((name) => {
+        const stat = statSync(`${dir}/${name}`);
+        return `${name}:${stat.mtimeMs}:${stat.size}`;
+      });
+    return files.length === 0 ? '__empty__' : files.join('|');
+  } catch {
+    return '';
+  }
 }
