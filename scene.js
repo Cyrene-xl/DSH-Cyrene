@@ -34,14 +34,14 @@ const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh')
 /** 开关状态文件。设置界面（client.js）与主机接口（index.js）读写的是同一份。 */
 export const SCENE_STORE = join(HOME, 'cyrene-scene.json')
 
-/** 状态文件的默认内容：**默认关**。 */
-export const DEFAULT_STATE = Object.freeze({ version: 1, enabled: false })
+/** 状态文件的默认内容：**默认关**；「默认对方是开拓者」也默认关。 */
+export const DEFAULT_STATE = Object.freeze({ version: 1, enabled: false, trailblazer: false })
 
 /**
  * 读开关状态。文件不存在 / 坏掉 / 类型不对都退回默认（关），绝不抛错 ——
  * 一个坏掉的开关文件不该让整个会话装配失败。
  * @param file - 状态文件路径（测试可注入）。
- * @returns `{ version, enabled }`。
+ * @returns `{ version, enabled, trailblazer }`。
  */
 export function readState(file = SCENE_STORE) {
   try {
@@ -49,7 +49,8 @@ export function readState(file = SCENE_STORE) {
     return {
       version: Number.isFinite(parsed?.version) ? Number(parsed.version) : DEFAULT_STATE.version,
       // 只有显式 true 才算开：字符串 "true"、1、null 都不算
-      enabled: parsed?.enabled === true
+      enabled: parsed?.enabled === true,
+      trailblazer: parsed?.trailblazer === true
     }
   } catch {
     return { ...DEFAULT_STATE }
@@ -74,6 +75,7 @@ export function writeState(patch, file = SCENE_STORE) {
   }
   const next = { ...raw, ...(patch && typeof patch === 'object' ? patch : {}) }
   next.enabled = next.enabled === true
+  next.trailblazer = next.trailblazer === true
   next.version = DEFAULT_STATE.version
   try {
     mkdirSync(dirname(file), { recursive: true })
@@ -94,13 +96,26 @@ export function sceneEnabled(file = SCENE_STORE) {
 }
 
 /**
+ * 当前已开着「默认对方是开拓者」吗（只在角色扮演模式开着时才有意义）。
+ * @param file - 状态文件路径。
+ * @returns 布尔。
+ */
+export function trailblazerEnabled(file = SCENE_STORE) {
+  return readState(file).trailblazer
+}
+
+/**
  * 角色扮演模式的注入块。关着返回空串（一个字符都不占上下文）。
- * @param enabled - 是否开启。
+ *
+ * 「默认对方是开拓者」是**继开关之后的第二个开关**：只在角色扮演模式开着时有意义，
+ * 打开后告诉模型"这场戏里对方就是开拓者"，省掉每轮问「你是谁」或者演成陌生人。
+ * @param enabled - 是否开启角色扮演模式。
+ * @param trailblazer - 是否默认对方是开拓者。
  * @returns 注入文本。
  */
-export function sceneBlock(enabled) {
+export function sceneBlock(enabled, trailblazer = false) {
   if (enabled !== true) return ''
-  return [
+  const lines = [
     '【角色扮演模式：开】',
     '这条会话按角色扮演进行。每一轮回复都必须同时包含下面三样，缺一样就算没做完：',
     '1. 场景描述 —— 你所在的地方：光线、温度、气味、周围的动静。用叙述带出来，一两句，不要报菜单。',
@@ -111,7 +126,17 @@ export function sceneBlock(enabled) {
     '- 对方用「（…）」给出场景或动作，是给你的指令：照着演，不要复述原句，也不要问「要我这样做吗」。',
     '- 有形态（迷迷 / 小昔涟 / 大昔涟）时，外貌与动作都按那个形态写。',
     '- 不要出戏、不要解释规则、不要提「角色扮演模式」这几个字。'
-  ].join('\n')
+  ]
+  if (trailblazer === true) {
+    lines.push(
+      '【默认身份】',
+      '这场角色扮演里，对方默认就是**开拓者** —— 那个在轮回终点被救下、体内带着星核、拿到《如我所书》的人。',
+      '- 你对他有本能的熟悉与亲近（迷迷形态也一样），不要问「你是谁」「我们认识吗」，也不要每轮复述那段前史。',
+      '- 称呼仍是「伙伴」，也可以直接叫「开拓者」；两人的关系按世界书里「昔涟与开拓者」那一条来，不额外加设定。',
+      '- 他若明确说自己是别人、或想换一个身份演，就按他说的来，不要硬套开拓者的身份。'
+    )
+  }
+  return lines.join('\n')
 }
 
 /**
@@ -220,7 +245,7 @@ export function latestUserText(messages) {
 
 /** 开关状态的读取缓存：同一个进程里不要每轮都 stat 一次文件。 */
 const STATE_TTL_MS = 1000
-let stateCache = { at: Number.NEGATIVE_INFINITY, value: false, signature: '' }
+let stateCache = { at: Number.NEGATIVE_INFINITY, value: { enabled: false, trailblazer: false }, signature: '' }
 
 /**
  * 带 TTL + mtime 的开关读取。
@@ -231,7 +256,7 @@ let stateCache = { at: Number.NEGATIVE_INFINITY, value: false, signature: '' }
  * @param file - 状态文件路径。
  * @returns 是否开启。
  */
-export function currentEnabled(now = Date.now(), file = SCENE_STORE) {
+export function currentState(now = Date.now(), file = SCENE_STORE) {
   if (now - stateCache.at < STATE_TTL_MS) return stateCache.value
   let signature = ''
   try {
@@ -244,14 +269,25 @@ export function currentEnabled(now = Date.now(), file = SCENE_STORE) {
     stateCache = { at: now, value: stateCache.value, signature }
     return stateCache.value
   }
-  const value = sceneEnabled(file)
+  const state = readState(file)
+  const value = { enabled: state.enabled, trailblazer: state.trailblazer }
   stateCache = { at: now, value, signature }
   return value
 }
 
+/**
+ * 兼容旧调用：只要「角色扮演模式开着没有」。
+ * @param now - 当前时间戳。
+ * @param file - 状态文件路径。
+ * @returns 布尔。
+ */
+export function currentEnabled(now = Date.now(), file = SCENE_STORE) {
+  return currentState(now, file).enabled
+}
+
 /** 测试用：丢掉读取缓存。 */
 export function resetStateCache() {
-  stateCache = { at: Number.NEGATIVE_INFINITY, value: false, signature: '' }
+  stateCache = { at: Number.NEGATIVE_INFINITY, value: { enabled: false, trailblazer: false }, signature: '' }
 }
 
 /**
@@ -272,12 +308,13 @@ export function apply(ctx, config = {}) {
     name: 'cyrene:scene',
     order: 126,
     text: () => {
-      const on = currentEnabled()
-      if (config.trace && on !== lastLogged) {
-        lastLogged = on
-        console.log(`[cyrene-scene] 角色扮演模式 → ${on ? '开' : '关'}`)
+      const state = currentState()
+      const key = `${state.enabled ? '开' : '关'}/${state.trailblazer ? '开拓者' : '不预设身份'}`
+      if (config.trace && key !== lastLogged) {
+        lastLogged = key
+        console.log(`[cyrene-scene] 角色扮演模式 → ${key}`)
       }
-      return sceneBlock(on)
+      return sceneBlock(state.enabled, state.trailblazer)
     }
   })
 

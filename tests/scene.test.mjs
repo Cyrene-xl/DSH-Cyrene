@@ -33,6 +33,7 @@ const {
   extractFormRequest,
   formBlock,
   latestUserText,
+  currentState,
   readState,
   resetStateCache,
   sceneBlock,
@@ -70,6 +71,7 @@ async function step(listener, messages, sessionId = 's1') {
 
 test('状态：没有文件时默认关', () => {
   assert.equal(readState().enabled, false)
+  assert.equal(readState().trailblazer, false, '「默认对方是开拓者」也默认关')
   assert.equal(sceneEnabled(), false)
   assert.equal(DEFAULT_STATE.enabled, false)
   assert.equal(SCENE_STORE, STORE, '状态文件应该落在 DSH_HOME 下')
@@ -82,6 +84,13 @@ test('状态：只有显式 true 才算开', () => {
   }
   writeFileSync(STORE, JSON.stringify({ enabled: true }), 'utf8')
   assert.equal(readState().enabled, true)
+
+  for (const value of ['true', 1, null]) {
+    writeFileSync(STORE, JSON.stringify({ trailblazer: value }), 'utf8')
+    assert.equal(readState().trailblazer, false, `trailblazer=${JSON.stringify(value)} 不该被当成开`)
+  }
+  writeFileSync(STORE, JSON.stringify({ trailblazer: true }), 'utf8')
+  assert.equal(readState().trailblazer, true)
 })
 
 test('状态：坏文件退回默认，不抛错', () => {
@@ -98,6 +107,12 @@ test('状态：写入能读回，并保留文件里的其它字段', () => {
   assert.equal(parsed.enabled, true)
   assert.equal(parsed.note, '手写的备注', '读-改-写不该冲掉别的字段')
   assert.equal(parsed.version, 1)
+
+  // 两个开关互不覆盖：只写 trailblazer 时 enabled 保持原样
+  assert.equal(writeState({ trailblazer: true }), true)
+  const both = JSON.parse(readFileSync(STORE, 'utf8'))
+  assert.deepEqual({ enabled: both.enabled, trailblazer: both.trailblazer }, { enabled: true, trailblazer: true })
+  assert.equal(both.note, '手写的备注')
   assert.ok(readFileSync(STORE, 'utf8').endsWith('\n'), '写回要带行尾换行')
 })
 
@@ -110,12 +125,15 @@ test('状态：写不进去时返回 false（比如目标是目录）', () => {
 
 test('缓存：1 秒内复用，之后看文件签名', () => {
   resetStateCache()
-  writeState({ enabled: true })
+  writeState({ enabled: true, trailblazer: true })
   assert.equal(currentEnabled(1_000), true)
+  assert.deepEqual(currentState(1_000), { enabled: true, trailblazer: true }, '整份状态一起缓存')
 
-  writeState({ enabled: false }) // 长度不同 → mtime/size 签名必变
+  writeState({ enabled: false, trailblazer: false }) // 长度不同 → mtime/size 签名必变
   assert.equal(currentEnabled(1_500), true, 'TTL 内仍用缓存')
+  assert.equal(currentState(1_500).trailblazer, true)
   assert.equal(currentEnabled(2_500), false, '超过 TTL 且文件变了就该重读')
+  assert.equal(currentState(2_500).trailblazer, false)
   assert.equal(currentEnabled(2_600), false, '再读仍然是关')
 })
 
@@ -138,6 +156,26 @@ test('注入：开着时强制要求场景 / 动作 / 外貌三样', () => {
   assert.ok(text.includes('不要提「角色扮演模式」'), '别出戏')
 })
 
+test('注入：默认不预设身份，开了才有「开拓者」那段', () => {
+  const plain = sceneBlock(true)
+  assert.ok(!plain.includes('开拓者'), '不开启时一个字都不提身份')
+  assert.equal(sceneBlock(true, false), plain, '显式 false 与默认一致')
+
+  const withTrail = sceneBlock(true, true)
+  assert.ok(withTrail.includes('【默认身份】'))
+  assert.ok(withTrail.includes('开拓者'))
+  assert.ok(withTrail.includes('不要问「你是谁」'), '要写清"别问他是谁"')
+  assert.ok(withTrail.includes('不要硬套'), '对方想换身份时要照办')
+  assert.ok(withTrail.startsWith(plain.split('\n')[0]), '前置的三样描述要求不能被顶掉')
+
+  assert.equal(sceneBlock(false, true), '', '模式关着时，身份开关也不注入')
+})
+
+test('注入：两段关系是"追加"的，三样要求仍在', () => {
+  const text = sceneBlock(true, true)
+  assert.ok(text.includes('场景描述') && text.includes('动作描述') && text.includes('外貌描述'))
+})
+
 test('注入：apply 注册 cyrene:scene，文本跟着开关走', () => {
   const { ctx, contexts } = mockCtx()
   resetStateCache()
@@ -151,6 +189,11 @@ test('注入：apply 注册 cyrene:scene，文本跟着开关走', () => {
   writeState({ enabled: true })
   resetStateCache()
   assert.ok(spec.text({}).includes('【角色扮演模式：开】'), '开了就该注入')
+  assert.ok(!spec.text({}).includes('开拓者'), '第二个开关没开就不提身份')
+
+  writeState({ trailblazer: true })
+  resetStateCache()
+  assert.ok(spec.text({}).includes('开拓者'), '开了第二个开关才提身份')
 })
 
 test('注入：开关不再往会话历史里插消息', async () => {
@@ -293,6 +336,30 @@ test('接口：GET 返回当前状态与文件路径', async () => {
   assert.equal(res.headers['Cache-Control'], 'no-store')
 })
 
+test('接口：GET 同时返回两个开关', async () => {
+  writeState({ enabled: true, trailblazer: true })
+  const res = fakeRes()
+  await handleSceneApi(fakeReq('GET'), res)
+  assert.deepEqual({ enabled: res.json.enabled, trailblazer: res.json.trailblazer }, { enabled: true, trailblazer: true })
+})
+
+test('接口：只写代表身份的开关，不动主开关', async () => {
+  writeState({ enabled: true, trailblazer: false })
+  const res = fakeRes()
+  await handleSceneApi(fakeReq('POST', JSON.stringify({ trailblazer: true })), res)
+  assert.equal(res.status, 200)
+  assert.deepEqual({ enabled: res.json.enabled, trailblazer: res.json.trailblazer }, { enabled: true, trailblazer: true })
+  assert.equal(readState().trailblazer, true)
+})
+
+test('接口：两个开关可以一次写', async () => {
+  writeState({ enabled: false, trailblazer: false })
+  const res = fakeRes()
+  await handleSceneApi(fakeReq('POST', JSON.stringify({ enabled: true, trailblazer: true })), res)
+  assert.equal(res.status, 200)
+  assert.deepEqual(readState(), { version: 1, enabled: true, trailblazer: true })
+})
+
 test('接口：POST 写入并回读确认', async () => {
   writeState({ enabled: true })
   const res = fakeRes()
@@ -324,7 +391,7 @@ test('接口：坏 JSON / 错误方法各有明确回应', async () => {
   assert.ok(wrong.json.error.includes('GET'))
 })
 
-test('接口：缺少 enabled 字段也不会被当成关', async () => {
+test('接口：缺少两个字段都不会被当成关', async () => {
   writeState({ enabled: true })
   const res = fakeRes()
   await handleSceneApi(fakeReq('POST', JSON.stringify({})), res)

@@ -140,7 +140,7 @@ window.__ModuleLoader__.load({
         .then(function (res) { return res.json(); })
         .then(function (body) {
           if (!body || body.ok !== true) throw new Error((body && body.error) || '读取失败');
-          return body.enabled === true;
+          return { enabled: body.enabled === true, trailblazer: body.trailblazer === true };
         });
     }
 
@@ -149,16 +149,16 @@ window.__ModuleLoader__.load({
      * @param enabled - 目标状态。
      * @returns Promise<boolean> 主机确认后的状态。
      */
-    function saveEnabled(enabled) {
+    function saveEnabled(patch) {
       return fetch(API, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ enabled: enabled })
+        body: JSON.stringify(patch)
       })
         .then(function (res) { return res.json(); })
         .then(function (body) {
           if (!body || body.ok !== true) throw new Error((body && body.error) || '保存失败');
-          return body.enabled === true;
+          return { enabled: body.enabled === true, trailblazer: body.trailblazer === true };
         });
     }
 
@@ -690,6 +690,9 @@ window.__ModuleLoader__.load({
       var statePair = react.useState(null); // null = 还没读到
       var enabled = statePair[0];
       var setEnabled = statePair[1];
+      var trailPair = react.useState(false);
+      var trailblazer = trailPair[0];
+      var setTrailblazer = trailPair[1];
       var busyPair = react.useState(false);
       var busy = busyPair[0];
       var setBusy = busyPair[1];
@@ -700,7 +703,11 @@ window.__ModuleLoader__.load({
       react.useEffect(function () {
         var alive = true;
         fetchEnabled()
-          .then(function (value) { if (alive) setEnabled(value); })
+          .then(function (value) {
+            if (!alive) return;
+            setEnabled(value.enabled);
+            setTrailblazer(value.trailblazer);
+          })
           .catch(function (err) { if (alive) setError(String((err && err.message) || err)); });
         return function () { alive = false; };
       }, []);
@@ -710,36 +717,81 @@ window.__ModuleLoader__.load({
         var next = !enabled;
         setBusy(true);
         setError('');
-        saveEnabled(next)
-          .then(function (value) { setEnabled(value); })
+        saveEnabled({ enabled: next })
+          .then(function (value) {
+            setEnabled(value.enabled);
+            setTrailblazer(value.trailblazer);
+          })
+          .catch(function (err) { setError(String((err && err.message) || err)); })
+          .then(function () { setBusy(false); });
+      }
+
+      function toggleTrailblazer() {
+        if (busy || enabled !== true) return;
+        var next = !trailblazer;
+        setBusy(true);
+        setError('');
+        saveEnabled({ trailblazer: next })
+          .then(function (value) {
+            setEnabled(value.enabled);
+            setTrailblazer(value.trailblazer);
+          })
           .catch(function (err) { setError(String((err && err.message) || err)); })
           .then(function () { setBusy(false); });
       }
 
       var checked = enabled === true;
-      return react.createElement(
-        'div',
-        { style: rowStyle },
-        react.createElement(
-          'div',
-          { style: rowTextStyle },
-          react.createElement('div', { style: titleStyle }, t('title')),
-          react.createElement('div', { style: descStyle }, checked ? t('onHint') : t('offHint')),
-          error ? react.createElement('div', { style: errorStyle }, error) : null
-        ),
-        react.createElement('button', {
+      var trailOn = trailblazer === true;
+
+      function switchEl(ariaLabel, isOn, disabled, onClick) {
+        return react.createElement('button', {
           type: 'button',
           role: 'switch',
-          'aria-checked': checked,
-          'aria-label': t('title'),
-          title: t('title'),
-          disabled: busy || enabled === null,
-          style: checked ? Object.assign({}, switchStyle, switchOnStyle) : switchStyle,
-          onClick: toggle
+          'aria-checked': isOn,
+          'aria-label': ariaLabel,
+          title: ariaLabel,
+          disabled: disabled,
+          style: isOn ? Object.assign({}, switchStyle, switchOnStyle) : switchStyle,
+          onClick: onClick
         }, react.createElement('span', {
-          style: checked ? Object.assign({}, knobStyle, knobOnStyle) : knobStyle
-        }))
-      );
+          style: isOn ? Object.assign({}, knobStyle, knobOnStyle) : knobStyle
+        }));
+      }
+
+      var children = [
+        react.createElement(
+          'div',
+          { key: 'main', style: rowStyle },
+          react.createElement(
+            'div',
+            { style: rowTextStyle },
+            react.createElement('div', { style: titleStyle }, t('title')),
+            react.createElement('div', { style: descStyle }, checked ? t('onHint') : t('offHint')),
+            error ? react.createElement('div', { style: errorStyle }, error) : null
+          ),
+          switchEl(t('title'), checked, busy || enabled === null, toggle)
+        )
+      ];
+
+      /*
+       * 依赖开关：只在角色扮演模式**开着**时才出现。
+       * 关掉模式后这一行直接消失 —— 免得人以为"开拓者"是个独立功能。
+       */
+      if (checked) {
+        children.push(react.createElement(
+          'div',
+          { key: 'trailblazer', style: Object.assign({}, rowStyle, { paddingLeft: '16px', borderBottom: 'none' }) },
+          react.createElement(
+            'div',
+            { style: rowTextStyle },
+            react.createElement('div', { style: titleStyle }, t('trailblazerTitle')),
+            react.createElement('div', { style: descStyle }, trailOn ? t('trailblazerOn') : t('trailblazerOff'))
+          ),
+          switchEl(t('trailblazerTitle'), trailOn, busy, toggleTrailblazer)
+        ));
+      }
+
+      return react.createElement('div', null, children);
     }
 
     /** 需要的主机侧服务：槽位、文案、会话（编辑按钮要靠它认当前会话）。 */
@@ -760,6 +812,9 @@ window.__ModuleLoader__.load({
             addressPlaceholder: '例如：伙伴（留空时用昵称）',
             addressLoading: '正在读取…',
             addressOn: '她这样叫你：',
+            trailblazerTitle: '默认对方是开拓者',
+            trailblazerOn: '已开启：这场戏里你就是开拓者 —— 她认得你，不会问「你是谁」。',
+            trailblazerOff: '关闭：不预设身份，她按你说的来（说自己是别人也照办）。',
             addressOff: '留空，用昵称：',
           },
           en: {
@@ -770,6 +825,9 @@ window.__ModuleLoader__.load({
             addressPlaceholder: 'e.g. partner (falls back to your nickname)',
             addressLoading: 'Loading…',
             addressOn: 'She calls you: ',
+            trailblazerTitle: 'Assume you are the Trailblazer',
+            trailblazerOn: 'On: in this role-play you are the Trailblazer; she knows you and will not ask who you are.',
+            trailblazerOff: 'Off: no assumed identity; she follows whatever you say.',
             addressOff: 'Empty — using your nickname: ',
           }
         });
