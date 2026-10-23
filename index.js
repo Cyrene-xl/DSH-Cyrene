@@ -196,8 +196,13 @@ export function foldSurface(events) {
  *   - 那一轮必须已经结束：表面最后是 `assistant/message`（已回复）或者
  *     这条用户消息本身（还没回复）。最后是 tool/result / system 说明还在跑，拒绝；
  *   - 带图片 / 文件的消息不编辑 —— 替换事件只带文本，附件会被静默丢掉。
+ *
+ * 返回两个可用的替换范围（调用方二选一）：
+ *   - **只改这条**：`[singleStartSeq, singleEndSeq]` + `singleShadowed` —— 后续回复保留，
+ *     日志里只是把这一条用户消息换掉（和 dsh-plugin-message-edit 的「保存」同义）；
+ *   - **改并撤回后续**：`[startSeq, endSeq]` + `shadowed` —— 相当于「改口重说」。
  * @param events - 按 seq 升序的事件数组。
- * @returns `{ ok, reason?, startSeq, endSeq, shadowed, text, source }`。
+ * @returns `{ ok, reason?, startSeq, endSeq, shadowed, singleStartSeq, singleEndSeq, singleShadowed, text, source }`。
  */
 export function planEdit(events) {
   const bySeq = new Map();
@@ -244,11 +249,15 @@ export function planEdit(events) {
   if (text === '') return { ok: false, reason: '这条消息里没有可编辑的文字' };
 
   const shadowed = nodes.slice(userIdx);
+  const single = [nodes[userIdx]];
   return {
     ok: true,
     startSeq: shadowed[0],
     endSeq: shadowed[shadowed.length - 1],
     shadowed,
+    singleStartSeq: single[0],
+    singleEndSeq: single[0],
+    singleShadowed: single,
     text,
     source: entry.data.source
   };
@@ -298,6 +307,12 @@ export async function handleEditApi(req, res, sessions) {
     }
     const sessionId = String(payload.sessionId || '');
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+    // keep（默认）= 只换这一条、后续回复保留；truncate = 连同后续一起撤回（改口重说）。
+    const mode = payload.mode === 'truncate' ? 'truncate' : payload.mode === 'keep' || payload.mode === undefined ? 'keep' : '';
+    if (mode === '') {
+      json(res, { ok: false, error: "mode 只能是 keep / truncate" }, 400);
+      return;
+    }
     if (text === '') {
       json(res, { ok: false, error: '消息不能为空' }, 400);
       return;
@@ -317,16 +332,19 @@ export async function handleEditApi(req, res, sessions) {
       return;
     }
     // 新的用户消息：source 沿用原消息的（可能是 user，也可能带了别的标记字段）。
+    const range = mode === 'truncate'
+      ? { startSeq: plan.startSeq, endSeq: plan.endSeq, shadowed: plan.shadowed }
+      : { startSeq: plan.singleStartSeq, endSeq: plan.singleEndSeq, shadowed: plan.singleShadowed };
     session.append('user/message', {
       id: randomUUID(),
       role: 'user',
       content: [{ type: 'text', text }],
       source: { ...(plan.source ?? { kind: 'user' }) }
     }, {
-      surfaceOp: { op: 'replace', startSeq: plan.startSeq, endSeq: plan.endSeq },
-      sourceEventSeqs: plan.shadowed
+      surfaceOp: { op: 'replace', startSeq: range.startSeq, endSeq: range.endSeq },
+      sourceEventSeqs: range.shadowed
     });
-    json(res, { ok: true, text, startSeq: plan.startSeq, endSeq: plan.endSeq });
+    json(res, { ok: true, text, mode, startSeq: range.startSeq, endSeq: range.endSeq });
   } catch (error) {
     json(res, { ok: false, error: String(error?.message ?? error) }, 400);
   }

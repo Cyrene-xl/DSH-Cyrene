@@ -108,7 +108,10 @@ test('判定：已回复的一轮 → 可改，替换范围到表面末尾', () 
   assert.equal(plan.text, '你好')
   assert.equal(plan.startSeq, 1)
   assert.equal(plan.endSeq, 2)
-  assert.deepEqual(plan.shadowed, [1, 2], '回复也要一起盖掉（编辑＝撤回重说）')
+  assert.deepEqual(plan.shadowed, [1, 2], 'truncate 要连回复一起盖掉')
+  assert.deepEqual(plan.singleShadowed, [1], 'keep 只盖这一条')
+  assert.equal(plan.singleStartSeq, 1)
+  assert.equal(plan.singleEndSeq, 1)
   assert.deepEqual(plan.source, { kind: 'user' })
 })
 
@@ -192,7 +195,7 @@ test('接口：GET 找不到会话 → 404', async () => {
   assert.equal(res.status, 404)
 })
 
-test('接口：POST 正确调用 append（表面替换 + 完整被遮蔽节点）', async () => {
+test('接口：POST 默认 keep —— 只换这一条，后续回复保留', async () => {
   const session = fakeSession([userEv(1, '旧话'), assistantEv(2), markerEv(3)])
   const res = fakeRes()
   await handleEditApi(
@@ -201,6 +204,7 @@ test('接口：POST 正确调用 append（表面替换 + 完整被遮蔽节点�
     { get: () => session }
   )
   assert.equal(res.status, 200)
+  assert.equal(res.json.mode, 'keep')
   assert.equal(session.appended.length, 1)
   const { type, data, opts } = session.appended[0]
   assert.equal(type, 'user/message')
@@ -209,8 +213,35 @@ test('接口：POST 正确调用 append（表面替换 + 完整被遮蔽节点�
   assert.equal(typeof data.id, 'string')
   assert.ok(data.id.length > 0, '必须带非空 id，否则事件校验会抛错')
   assert.equal(data.source.kind, 'user', 'source 沿用原消息')
-  assert.deepEqual(opts.surfaceOp, { op: 'replace', startSeq: 1, endSeq: 2 }, '替换范围 = 那条消息到表面末尾')
+  assert.deepEqual(opts.surfaceOp, { op: 'replace', startSeq: 1, endSeq: 1 }, '只替换那一条用户消息')
+  assert.deepEqual(opts.sourceEventSeqs, [1], '只遮蔽它自己')
+})
+
+test('接口：POST mode=truncate —— 连同后续一起撤回', async () => {
+  const session = fakeSession([userEv(1, '旧话'), assistantEv(2), markerEv(3)])
+  const res = fakeRes()
+  await handleEditApi(
+    fakeReq('POST', '/cyrene-edit-api', JSON.stringify({ sessionId: 's1', text: '新话', mode: 'truncate' })),
+    res,
+    { get: () => session }
+  )
+  assert.equal(res.status, 200)
+  assert.equal(res.json.mode, 'truncate')
+  const { opts } = session.appended[0]
+  assert.deepEqual(opts.surfaceOp, { op: 'replace', startSeq: 1, endSeq: 2 }, '范围 = 那条消息到表面末尾')
   assert.deepEqual(opts.sourceEventSeqs, [1, 2], '被遮蔽的表面节点一个不能少')
+})
+
+test('接口：mode 写错 → 400，且不写日志', async () => {
+  const session = fakeSession([userEv(1, '旧话'), assistantEv(2)])
+  const res = fakeRes()
+  await handleEditApi(
+    fakeReq('POST', '/cyrene-edit-api', JSON.stringify({ sessionId: 's1', text: '新话', mode: 'replace' })),
+    res,
+    { get: () => session }
+  )
+  assert.equal(res.status, 400)
+  assert.equal(session.appended.length, 0)
 })
 
 test('接口：POST 空文本 / 未知会话 / 不可编辑各有回应', async () => {

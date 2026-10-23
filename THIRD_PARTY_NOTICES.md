@@ -218,6 +218,19 @@ Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观�
 - 预设作用域内调用 `ctx.provide()` 会被 `leakedServices` 校验判为污染进程全局，
   导致**整个预设挂载失败**（连新建会话都会出问题）。
 
+### 消息编辑的语义参考了谁
+
+「只换这一条 / 连同后续一起撤回」这两种保存语义**不是本项目想出来的**，参考了两个社区插件
+（0.2.x 生态，代码一行未抄；它们依赖 DSH 0.2.x 的接口，本项目的实现只依赖 0.1.5 就有的事件日志）：
+
+- [sh1robana/dsh-plugin-message-edit](https://github.com/sh1robana/dsh-plugin-message-edit)
+  —— 「保存」（保留后续回复）与「保存并发送」（分支重发）两档，另有附件编辑与版本时间线。
+- [Moeblack/dsh-message-edit](https://github.com/Moeblack/dsh-message-edit) —— 上面那个项目的上游。
+
+两者的实现都用会话的**表面替换**（`surfaceOp: replace`），与本项目一致：只替换用户消息节点
+（保留后续）或替换到末尾（撤回后续），旧事件仍留在 append-only 日志里。
+区别于它们的是：本项目只做「最后一条用户消息」，不做附件编辑、分支会话与版本时间线。
+
 ### 预设与装配格式
 
 `agent.cordis.yml` 的格式、`complete: true` 的语义、`systemPrompt.context()` 与

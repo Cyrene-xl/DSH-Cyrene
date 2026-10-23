@@ -313,7 +313,7 @@ window.__ModuleLoader__.load({
       title.style.cssText = 'font-size:14px;line-height:22px;font-weight:500;';
 
       var hint = document.createElement('div');
-      hint.textContent = '保存后，这条消息之后的回复会从对话里撤回（原文仍留在会话日志里）。';
+      hint.textContent = '「保存」只改这一句，后面的回复留着；「保存并撤回后续」会把这条之后的内容一并撤回（原文仍留在会话日志里）。';
       hint.style.cssText = 'font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);';
 
       var area = document.createElement('textarea');
@@ -339,10 +339,12 @@ window.__ModuleLoader__.load({
         return b;
       };
       var cancel = pill('取消');
+      var saveTruncate = pill('保存并撤回后续');
       var save = pill('保存');
       save.style.background = 'var(--dsw-alias-state-business-primary)';
       save.style.color = '#fff';
       footer.appendChild(cancel);
+      footer.appendChild(saveTruncate);
       footer.appendChild(save);
 
       panel.appendChild(title);
@@ -356,16 +358,18 @@ window.__ModuleLoader__.load({
         document.removeEventListener('keydown', onKey);
       }
 
-      function submit() {
+      function submit(mode) {
         var next = area.value.trim();
         if (next === '') { toast('消息不能为空'); return; }
+        var label = save.textContent;
         save.disabled = true;
+        saveTruncate.disabled = true;
         cancel.disabled = true;
-        save.textContent = '保存中…';
+        (mode === 'truncate' ? saveTruncate : save).textContent = '保存中…';
         fetch(EDIT_API, {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ sessionId: sessionId, text: next })
+          body: JSON.stringify({ sessionId: sessionId, text: next, mode: mode })
         })
           .then(function (res) { return res.json(); })
           .then(function (body) {
@@ -386,19 +390,23 @@ window.__ModuleLoader__.load({
           })
           .catch(function (err) {
             save.disabled = false;
+            saveTruncate.disabled = false;
             cancel.disabled = false;
-            save.textContent = '保存';
+            save.textContent = label;
+            saveTruncate.textContent = '保存并撤回后续';
             toast(String((err && err.message) || err));
           });
       }
 
       function onKey(event) {
         if (event.key === 'Escape') { event.preventDefault(); close(); }
-        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); submit(); }
+        /* Ctrl/Cmd+Enter = 只改这一句（更保守的那个）；撤回后续得显式点。 */
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); submit('keep'); }
       }
 
       cancel.addEventListener('click', close);
-      save.addEventListener('click', submit);
+      save.addEventListener('click', function () { submit('keep'); });
+      saveTruncate.addEventListener('click', function () { submit('truncate'); });
       overlay.addEventListener('click', function (event) {
         if (event.target === overlay) close();
       });
