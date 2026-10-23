@@ -17,7 +17,10 @@ import { fileURLToPath } from 'node:url'
 
 import {
   STYLES,
+  TRAILBLAZER_CLOSE,
+  TRAILBLAZER_OPEN,
   apply,
+  applyStyleConditionals,
   buildStyleBlock,
   chooseStyle,
   isStyleDisabled,
@@ -335,6 +338,69 @@ test('强度档：内置五档不带授权标记', () => {
   const session = { id: 's1', snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'chat' } }] }
   const block = contexts[0].text({ agent: { session } })
   assert.ok(!block.includes('【授权状态】'), '内置档不需要授权标记')
+})
+
+// ───────────────────────── 条件块（开拓者）─────────────────────────
+
+test('条件块：开关没开时整段剥掉，标记本身也不出现', () => {
+  const src = `前文\n${TRAILBLAZER_OPEN}\n开拓者段\n${TRAILBLAZER_CLOSE}\n后文`
+  const out = applyStyleConditionals(src, { trailblazer: false })
+  assert.ok(!out.includes('开拓者段'))
+  assert.ok(!out.includes('dsh-cyrene:trailblazer'), '标记不能漏给模型')
+  assert.ok(out.includes('前文') && out.includes('后文'))
+})
+
+test('条件块：开了才保留内容', () => {
+  const src = `前文\n${TRAILBLAZER_OPEN}\n开拓者段\n${TRAILBLAZER_CLOSE}\n后文`
+  const out = applyStyleConditionals(src, { trailblazer: true })
+  assert.ok(out.includes('开拓者段'))
+  assert.ok(!out.includes('dsh-cyrene:trailblazer'), '标记本身不注入')
+})
+
+test('条件块：多个块分别处理；没标记的文件原样返回', () => {
+  const src = `${TRAILBLAZER_OPEN}一${TRAILBLAZER_CLOSE}\n中间\n${TRAILBLAZER_OPEN}二${TRAILBLAZER_CLOSE}`
+  assert.equal(applyStyleConditionals(src, { trailblazer: false }), '中间')
+  const kept = applyStyleConditionals(src, { trailblazer: true })
+  assert.ok(kept.includes('一') && kept.includes('二') && kept.includes('中间'))
+
+  const plain = '# 风格\n说话短一点。'
+  assert.equal(applyStyleConditionals(plain, { trailblazer: true }), plain)
+  assert.equal(applyStyleConditionals('', { trailblazer: true }), '')
+})
+
+test('条件块：未闭合时原样保留（宁可多注入，不静默吞内容）', () => {
+  const src = `前文\n${TRAILBLAZER_OPEN}\n没有结束标记`
+  const out = applyStyleConditionals(src, { trailblazer: false })
+  assert.ok(out.includes('没有结束标记'))
+  assert.ok(out.includes(TRAILBLAZER_OPEN), '未闭合标记保留原样')
+})
+
+test('条件块：接线 —— custom 档按两个开关决定注入', () => {
+  const customPath = join(TMP, 'conditional-custom.md')
+  writeFileSync(customPath, `# 我的风格\n说话短一点。\n\n${TRAILBLAZER_OPEN}\n开拓者段\n${TRAILBLAZER_CLOSE}\n`, 'utf8')
+  const scenePath = join(TMP, 'conditional-scene.json')
+  const { ctx, contexts } = mockCtx()
+  const storePath = freshStore('conditional-inject')
+  writeState(storePath, chooseStyle(readState(storePath), 's1', 'custom', 1))
+  apply(ctx, { storePath, dir: STYLE_DIR, customPath, scenePath })
+  const session = { id: 's1', snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'chat' } }] }
+  const text = () => contexts[0].text({ agent: { session } })
+
+  // 没有开关文件 → 默认关
+  assert.ok(!text().includes('开拓者段'), '默认不该注入')
+  assert.ok(text().includes('说话短一点'))
+
+  // 只开角色扮演模式，没开身份
+  writeFileSync(scenePath, JSON.stringify({ version: 1, enabled: true, trailblazer: false }), 'utf8')
+  assert.ok(!text().includes('开拓者段'), '只开模式不该注入身份段')
+
+  // 两个都开
+  writeFileSync(scenePath, JSON.stringify({ version: 1, enabled: true, trailblazer: true }), 'utf8')
+  assert.ok(text().includes('开拓者段'), '两个都开才注入')
+
+  // 关掉模式（身份开着也不算）
+  writeFileSync(scenePath, JSON.stringify({ version: 1, enabled: false, trailblazer: true }), 'utf8')
+  assert.ok(!text().includes('开拓者段'), '模式关着时身份开关无效')
 })
 
 // ───────────────────────── 接线 ─────────────────────────

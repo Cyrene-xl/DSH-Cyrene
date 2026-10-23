@@ -39,6 +39,8 @@
  * - 上游 `custom` 档的采样可配 temperature 或 top-p；DSH 没有 top-p 通道，所以只支持温度。
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+
+import { readState as readSceneState } from './scene.js'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -262,6 +264,52 @@ export function chooseStyle(state, sessionId, styleId, now = Date.now()) {
   }
 }
 
+/** 风格文件里的条件块：只有「角色扮演模式 + 默认对方是开拓者」都开着时才注入。 */
+export const TRAILBLAZER_OPEN = '<!-- dsh-cyrene:trailblazer -->'
+/** 条件块结束标记。 */
+export const TRAILBLAZER_CLOSE = '<!-- /dsh-cyrene:trailblazer -->'
+
+/**
+ * 处理风格文件里的**条件块**。
+ *
+ * 为什么需要它：风格文件是静态文本、每轮整段注入；但有些内容只在特定开关下才成立
+ * （典型例子：按'你是开拓者'来写语气）。条件块让同一份文件既能带这段、又能在开关
+ * 关掉时一个字都不占上下文 —— 比让模型"自己判断要不要用"可靠，也比维护两份文件省事。
+ *
+ * 规则：
+ *   - 标记行本身不注入；
+ *   - 未闭合的块**原样保留**（宁可多注入一点，也不静默吞掉用户写的内容）；
+ *   - 没有标记的文件原样返回。
+ * @param text - 风格文件正文。
+ * @param flags - `{ trailblazer }`：条件是否成立。
+ * @returns 处理后的正文。
+ */
+export function applyStyleConditionals(text, flags = {}) {
+  const source = String(text ?? '')
+  if (!source.includes(TRAILBLAZER_OPEN)) return source
+  const keep = flags.trailblazer === true
+  let out = ''
+  let cursor = 0
+  while (cursor < source.length) {
+    const open = source.indexOf(TRAILBLAZER_OPEN, cursor)
+    if (open === -1) {
+      out += source.slice(cursor)
+      break
+    }
+    out += source.slice(cursor, open)
+    const close = source.indexOf(TRAILBLAZER_CLOSE, open + TRAILBLAZER_OPEN.length)
+    if (close === -1) {
+      // 没闭合：保留原样，别把后面的内容吃掉
+      out += source.slice(open)
+      break
+    }
+    if (keep) out += source.slice(open + TRAILBLAZER_OPEN.length, close)
+    cursor = close + TRAILBLAZER_CLOSE.length
+  }
+  // 块被剥掉 / 保留后都可能留下多余空行，收一下；首尾空白也顺手去掉（外层还会再 trim）。
+  return out.replace(/\n{3,}/g, '\n\n').trim()
+}
+
 /**
  * 把风格文件正文包成注入块 —— **外壳与上游 `buildStylePromptBlock()` 逐字一致**。
  *
@@ -355,6 +403,8 @@ export function apply(ctx, config = {}) {
   const storePath = config.storePath || join(HOME, 'cyrene-style.json')
   const styleDir = config.dir || join(HERE, 'styles')
   const customPath = config.customPath || join(HOME, 'cyrene-style-custom.md')
+  /* 条件块要看「角色扮演模式 / 默认对方是开拓者」这两个开关的状态。 */
+  const scenePath = config.scenePath || join(HOME, 'cyrene-scene.json')
 
   // ── 风格提示词：请求尾部，每轮重算 ──────────────────────────────────────
   ctx.systemPrompt.context({
@@ -367,7 +417,9 @@ export function apply(ctx, config = {}) {
       const sessionId = session?.id ?? ''
       const state = readState(storePath)
       const styleId = resolveStyle(state, sessionId)
-      const text = readStyleText(styleId, { dir: styleDir, customPath })
+      const raw = readStyleText(styleId, { dir: styleDir, customPath })
+      const scene = readSceneState(scenePath)
+      const text = applyStyleConditionals(raw, { trailblazer: scene.enabled === true && scene.trailblazer === true })
       // 两档强度只对 custom 档有意义；内置五档不带标记。
       const marker = styleId === 'custom' ? tierMarker(state.customTier) : ''
       return buildStyleBlock(text, marker)
