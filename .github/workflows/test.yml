@@ -42,12 +42,12 @@ jobs:
           DSH_HOME: ${{ runner.temp }}/dsh-ci
         run: |
           set -euo pipefail
-          node scripts/install.mjs
+          node scripts/install.mjs --yes
           test -f "$DSH_HOME/.agent-presets/chat/agent.cordis.yml"
           test -f "$DSH_HOME/.agent-presets/cyrene-work/agent.cordis.yml"
-          node scripts/install.mjs > rerun.log
+          node scripts/install.mjs --yes > rerun.log
           grep -q "已是最新" rerun.log
-          node scripts/install.mjs --uninstall
+          node scripts/install.mjs --uninstall --yes
           test ! -e "$DSH_HOME/.agent-presets/chat"
           echo "✓ 安装 / 幂等 / 卸载 三条都过"
 
@@ -140,12 +140,12 @@ jobs:
         run: |
           set -euo pipefail
           echo "DSH_HOME=$DSH_HOME"
-          node scripts/install.mjs
+          node scripts/install.mjs --yes
           [ -f "$DSH_HOME/.agent-presets/chat/agent.cordis.yml" ] || { echo "✗ chat 预设没装上"; exit 1; }
           [ -f "$DSH_HOME/.agent-presets/cyrene-work/agent.cordis.yml" ] || { echo "✗ cyrene-work 预设没装上"; exit 1; }
           # 同样落盘再查，不接管道（理由见上一步）
-          node scripts/install.mjs > rerun.log
+          node scripts/install.mjs --yes > rerun.log
           grep -q "已是最新" rerun.log || { echo "✗ 复跑没有报「已是最新」（幂等性坏了）"; cat rerun.log; exit 1; }
-          node scripts/install.mjs --uninstall
+          node scripts/install.mjs --uninstall --yes
           [ ! -e "$DSH_HOME/.agent-presets/chat" ] || { echo "✗ 卸载没清掉"; exit 1; }
           echo "✓ 安装 / 幂等 / 卸载 三条都过"

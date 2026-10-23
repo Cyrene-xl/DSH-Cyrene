@@ -83,10 +83,10 @@ CI 里用**临时 `DSH_HOME`**跑，不碰真实 profile：
 
 ```bash
 DSH_HOME=$(mktemp -d)
-node scripts/install.mjs            # 安装预设
+node scripts/install.mjs --yes      # 安装预设（非交互需要 --yes）
 ls "$DSH_HOME/.agent-presets"       # chat / cyrene-work 出现
-node scripts/install.mjs            # 幂等：应输出「已是最新」
-node scripts/install.mjs --uninstall
+node scripts/install.mjs --yes      # 幂等：应输出「已是最新」
+node scripts/install.mjs --uninstall --yes
 [ ! -e "$DSH_HOME/.agent-presets/chat" ] && echo "卸载干净"
 ```
 

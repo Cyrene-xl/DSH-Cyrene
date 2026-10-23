@@ -27,6 +27,19 @@ DSH STORE 固定源检查的整改版：**不是功能更新，是把"清单没�
   `exports` 必须是文件、`files` 覆盖所有 export 目标、无生命周期脚本、无运行时依赖）。
 - CI 增加：发布契约自检 + Linux 临时 `DSH_HOME` 的试装 / 幂等 / 卸载（Windows 那条早就有）。
 
+### 安装器加固（Profile 变更按变更对待）
+
+`scripts/install.mjs` 现在是一条**可审计的 Profile 变更流程**：
+
+- `--dry-run`：先出**一次性安装计划**（每个目标 + 前置 sha-256），不写任何文件；
+- **精确确认**：终端里手输 `yes`，非交互环境必须显式 `--yes`，否则拒绝且不写；
+- **前置哈希**：计划时算 sha-256，写之前再核对（防计划后被并发改动）；
+- **原子提交**：补丁写临时文件再 rename；预设目录先 rename 备份、拷到临时目录再 rename 到位；
+- **健康检查**：装完逐目录比指纹、检查补丁里确实有声明标记，失败自动**回滚**；
+- `--rollback`：按 journal（`<DSH_HOME>/.cyrene-install-journal.json`）恢复到安装前；
+- `scripts/install.sh` 改成一行 `exec node install.mjs` —— 逻辑只保留一份，避免 bash / Node 两套漂移。
+- 测试 232 → 236（新增：缺 `--yes` 拒绝且零写入、`--dry-run` 只读、`--force` 后 `--rollback` 恢复、journal 落盘）。
+
 ### `build-dsh-plugin` 只读预检整改
 
 - 预检（`audit-plugin.mjs`）把 `scripts/worldbook-audit.mjs` 里的 `estimateTokens()`

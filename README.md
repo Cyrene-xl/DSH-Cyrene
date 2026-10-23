@@ -126,12 +126,21 @@ dsh plugin --profile <你的 profile> add link:/你的路径/DSH-Cyrene
 所以预设必须拷贝到位：
 
 ```bash
-# Linux / macOS
-./scripts/install.sh
+# 先看会改什么（只读，不写任何文件）
+./scripts/install.sh --dry-run        # 或 node scripts/install.mjs --dry-run
+
+# Linux / macOS（需要 Node 22+，脚本只是 install.mjs 的入口）
+./scripts/install.sh --yes
 
 # 任意平台（含 Windows，无 shell 依赖，Node 22+）
-node scripts/install.mjs
+node scripts/install.mjs --yes
 ```
+
+> **为什么要 `--yes`**：安装会写 `<DSH_HOME>/.agent-presets/` 和 profile 的
+> `cordis.patch.yml`，属于 Profile 变更。脚本会先打印**一次性计划**，写入前要求
+> **精确确认**（终端里手输 `yes`，或显式 `--yes`）；覆盖前**备份**、落盘**原子**
+> 替换、装完跑**健康检查**，失败自动**回滚**。全过程记在
+> `<DSH_HOME>/.cyrene-install-journal.json`，`--rollback` 可恢复到安装前。
 
 > ### 为什么没有 Windows 专用脚本
 >
@@ -843,8 +852,8 @@ dsh-cyrene/
 │       └── preset.yml       模态元信息
 ├── scripts/
 │   ├── verify-package.mjs   发布契约自检（engines / exports / files / 生命周期 / 依赖）
-│   ├── install.sh           Linux / macOS
-│   ├── install.mjs          跨平台（Node，Windows 也走这条）
+│   ├── install.sh           Linux / macOS 入口（exec install.mjs，逻辑只有一份）
+│   ├── install.mjs          安装器：计划 / 确认 / 前置哈希 / 原子 / 健康检查 / 回滚
 │   └── export-preset-declarations.mjs  DSH 0.2.0+ 的声明式预设导出
 ├── tests/
 │   ├── scene.test.mjs       角色扮演模式开关 / 注入块 / 设置接口 / 形态切换
@@ -892,7 +901,7 @@ dsh-cyrene/
 模式在选择器里看着好好的，发第一条消息才炸，之后每一轮都失败。也正因如此，
 不要照搬上游 Cyrene-Agent 新版 prompts 里的模板变量。
 
-**想彻底卸载** —— `scripts/install.sh --uninstall` 删预设，再
+**想彻底卸载** —— `scripts/install.sh --uninstall --yes` 删预设，再
 `dsh plugin --profile <你的 profile> remove dsh-cyrene` 删插件。
 
 ## 开发与测试

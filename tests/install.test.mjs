@@ -37,12 +37,26 @@ function makeHome({ declarative = [], legacy = ['p-old'] } = {}) {
   return home
 }
 
-/** 跑一次安装脚本。 */
-function runInstall(home) {
-  return execFileSync(process.execPath, [INSTALL], {
+/**
+ * 跑一次安装脚本。
+ *
+ * 默认带 `--yes`：安装现在是"Profile 变更"，非交互环境必须显式确认（这正是脚本的
+ * 安全设计）。要测"没确认会怎样"的用例，传 `extra = []`。
+ */
+function runInstall(home, extra = ['--yes']) {
+  return execFileSync(process.execPath, [INSTALL, ...extra], {
     encoding: 'utf8',
     env: { ...process.env, DSH_HOME: home },
   })
+}
+
+/** 跑一次安装脚本，返回 `{ status, stdout, stderr }`（失败不抛）。 */
+function tryInstall(home, extra) {
+  try {
+    return { status: 0, stdout: runInstall(home, extra), stderr: '' }
+  } catch (error) {
+    return { status: error.status ?? 1, stdout: String(error.stdout ?? ''), stderr: String(error.stderr ?? '') }
+  }
 }
 
 test('声明式代：把两套预设写进 profile 补丁，替换空补丁的 []', () => {
@@ -107,6 +121,53 @@ test('混合：声明式 profile 写声明，同时仍保留目录副本给老�
   runInstall(home)
   assert.ok(readFileSync(patch, 'utf8').includes('preset-chat'), '声明式 profile 应拿到声明')
   assert.ok(existsSync(join(home, '.agent-presets', 'chat')), '目录副本也要有（同一机器上的 0.1.x 要用）')
+})
+
+test('安全：非交互环境没给 --yes 就拒绝，且不写任何文件', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  const result = tryInstall(home, [])
+  assert.notEqual(result.status, 0, '没有精确确认必须失败')
+  assert.ok(result.stderr.includes('--yes'), '要告诉用户怎么确认')
+  assert.equal(readFileSync(patch, 'utf8'), '[]\n', '补丁不能被改动')
+  assert.ok(!existsSync(join(home, '.agent-presets', 'chat')), '预设目录不能被创建')
+})
+
+test('安全：--dry-run 只打印计划，不写任何文件', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  const out = runInstall(home, ['--dry-run'])
+  assert.ok(out.includes('一次性安装计划'), '要打印计划')
+  assert.ok(out.includes('没有写入任何文件'), '要说明只读')
+  assert.equal(readFileSync(patch, 'utf8'), '[]\n')
+  assert.ok(!existsSync(join(home, '.agent-presets', 'chat')))
+})
+
+test('安全：--force 覆盖后可以用 --rollback 恢复原预设', () => {
+  const home = makeHome({ declarative: [], legacy: [] })
+  const dest = join(home, '.agent-presets', 'chat')
+  mkdirSync(dest, { recursive: true })
+  writeFileSync(join(dest, 'agent.cordis.yml'), 'mine: true\n', 'utf8')
+
+  runInstall(home, ['--yes', '--force'])
+  assert.notEqual(readFileSync(join(dest, 'agent.cordis.yml'), 'utf8'), 'mine: true\n', '应已被覆盖')
+
+  const out = runInstall(home, ['--rollback'])
+  assert.ok(out.includes('回滚完成'), '要报告回滚结果')
+  assert.equal(readFileSync(join(dest, 'agent.cordis.yml'), 'utf8'), 'mine: true\n', '应恢复成用户原来那份')
+})
+
+test('安全：安装成功会留下 journal（--rollback 的依据）', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  writeFileSync(join(home, 'profiles', 'p-new', 'cordis.patch.yml'), '[]\n', 'utf8')
+  runInstall(home, ['--yes'])
+  const journal = JSON.parse(readFileSync(join(home, '.cyrene-install-journal.json'), 'utf8'))
+  assert.equal(journal.status, 'applied')
+  assert.ok(Array.isArray(journal.records) && journal.records.length > 0, '要记录改了哪些目标')
 })
 
 test('清理临时目录', () => {
