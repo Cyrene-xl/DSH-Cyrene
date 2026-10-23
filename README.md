@@ -290,6 +290,15 @@ node scripts/install.mjs
 用途是"不想让你看见的、还没想明白的、只想留个痕迹的"。她主动写进去的东西，
 你不会在对话里看到，除非她自己去翻（或者你自己打开这个文件 —— 它就是个普通 md）。
 
+> **「余页」不是本项目起的名字。** 这个名字、以及"一块不需要理由的自由纸页"这个设计，
+> 都来自社区项目 [YOGEMOW/dsh-cyrene-eternal-page-remembrance](https://github.com/YOGEMOW/dsh-cyrene-eternal-page-remembrance)
+> （「一页永恒·记忆」）—— 它 README 的名字表里明确把「余页」列为自己的概念
+> （"她在书里随手写的空白页"）。同一个项目的「四问」也是我们四问锚点的出处，
+> 「写进记忆不向对方汇报」这条边界同样借自它。我们只借概念与名字，实现是自己写的：
+> 他们是 `余页/` 目录 + `memory_fs` 工具 + 64 MB 子配额 + 思源镜像；
+> 我们是一个 `cyrene-page.md` + `write_page`/`read_page` + 64 KB。
+> 出处与授权说明见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+
 ### 称呼是动态的
 
 `{{user_nickname}}` 每轮装配**现取**，所以改完立刻生效（不用重启、不用新建会话）。

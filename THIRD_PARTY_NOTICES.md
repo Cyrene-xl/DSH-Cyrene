@@ -229,10 +229,11 @@ Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观�
 （代码一行未抄，实现方式、存储格式、工具面都不同）：
 
 - [YOGEMOW/dsh-cyrene-eternal-page-remembrance](https://github.com/YOGEMOW/dsh-cyrene-eternal-page-remembrance)
-  —— 「一页永恒·记忆」：四问锚点、按 锚/日/月/年 分层归档、独立的"余页"纸页、
-  配额管理。本项目只借了**分层与余页这两个概念**：锚点固定四节、归档是文件里的一段
-  标记而不是目录树、余页是单个 md 文件（64 KB 上限），没有引入它的 11 个 `memory_*`
-  工具与夜间调度器。
+  —— 「一页永恒·记忆」：四问锚点、按 锚/日/月/年 分层归档、独立的「余页」纸页、
+  配额管理，以及「写进记忆不向对方汇报」这条边界。本项目借的是**名字与这几个概念**
+  （「余页」「四问」都是该项目 README 名字表里列在自己名下的东西）：
+  锚点固定四节、归档是文件里的一段标记而不是目录树、余页是单个 md 文件（64 KB 上限）。
+  没有引入它的 11 个 `memory_*` 工具、思源镜像与夜间调度器。
 - [feverZHONG/liya-sillytavern-worldbook](https://github.com/feverZHONG/liya-sillytavern-worldbook)
   —— SillyTavern 世界书写法的方法论。本项目借的是**判断口径**（首句自报家门、
   只留事实、单条要短），不是它的具体数值；`scripts/worldbook-audit.mjs` 按这套口径
