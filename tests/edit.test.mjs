@@ -12,7 +12,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 
-const { foldSurface, planEdit, handleEditApi } = await import('../index.js')
+const { foldSurface, planEdit, versionChain, handleEditApi } = await import('../index.js')
 
 const userEv = (seq, text, source = { kind: 'user' }) => ({
   seq,
@@ -168,6 +168,95 @@ test('判定：编辑过的会话还能再编辑（在替换后的表面上）',
   assert.equal(plan.startSeq, 3)
   assert.equal(plan.endSeq, 3)
   assert.deepEqual(plan.shadowed, [3])
+})
+
+// ───────────────────────── 版本链 ─────────────────────────
+
+test('版本链：没编辑过只有一版', () => {
+  const chain = versionChain([userEv(1, '原话'), assistantEv(2)])
+  assert.equal(chain.versions.length, 1)
+  assert.equal(chain.currentIndex, 0)
+  assert.equal(chain.versions[0].text, '原话')
+  assert.equal(chain.versions[0].seq, 1)
+})
+
+test('版本链：编辑一次 → 两版，顺序是旧→新', () => {
+  const chain = versionChain([userEv(1, '原话'), assistantEv(2), replaceEv(3, 1, 1, '改后')])
+  assert.deepEqual(chain.versions.map((v) => v.text), ['原话', '改后'])
+  assert.deepEqual(chain.versions.map((v) => v.seq), [1, 3])
+  assert.equal(chain.currentIndex, 1, '当前是改后那版')
+})
+
+test('版本链：连续编辑 → 链一路倒推回最初', () => {
+  const events = [
+    userEv(1, 'v0'), assistantEv(2),
+    replaceEv(3, 1, 1, 'v1'),
+    replaceEv(4, 3, 3, 'v2'),
+    replaceEv(5, 4, 4, 'v3')
+  ]
+  const chain = versionChain(events)
+  assert.deepEqual(chain.versions.map((v) => v.text), ['v0', 'v1', 'v2', 'v3'])
+  assert.equal(chain.currentIndex, 3)
+})
+
+test('版本链：保存并撤回后续（多节点替换）不进入文本版本链', () => {
+  const events = [userEv(1, '原话'), assistantEv(2), replaceEv(3, 1, 2, '改后')]
+  const chain = versionChain(events)
+  assert.deepEqual(chain.versions.map((v) => v.text), ['改后'], '多节点替换不在单节点链上')
+  assert.equal(chain.currentIndex, 0)
+})
+
+test('版本链：没有用户消息时为空', () => {
+  assert.deepEqual(versionChain([assistantEv(1)]), { versions: [], currentIndex: -1 })
+})
+
+test('接口：GET 带上版本链', async () => {
+  const session = fakeSession([userEv(1, '原话'), assistantEv(2), replaceEv(3, 1, 1, '改后')])
+  const res = fakeRes()
+  await handleEditApi(fakeReq('GET', '/cyrene-edit-api?session=s1'), res, { get: () => session })
+  assert.equal(res.json.versions.length, 2)
+  assert.deepEqual(res.json.versions.map((v) => v.current), [false, true])
+  assert.equal(res.json.currentIndex, 1)
+})
+
+test('接口：POST targetSeq 切回旧版（单节点替换）', async () => {
+  const session = fakeSession([userEv(1, '原话'), assistantEv(2), replaceEv(3, 1, 1, '改后')])
+  const res = fakeRes()
+  await handleEditApi(
+    fakeReq('POST', '/cyrene-edit-api', JSON.stringify({ sessionId: 's1', targetSeq: 1 })),
+    res,
+    { get: () => session }
+  )
+  assert.equal(res.status, 200)
+  assert.equal(session.appended.length, 1)
+  const { data, opts } = session.appended[0]
+  assert.equal(data.content[0].text, '原话', '把原文抄回来')
+  assert.deepEqual(opts.surfaceOp, { op: 'replace', startSeq: 3, endSeq: 3 }, '只替换当前那一格')
+  assert.deepEqual(opts.sourceEventSeqs, [3])
+})
+
+test('接口：POST targetSeq 是当前版 → 不写日志', async () => {
+  const session = fakeSession([userEv(1, '原话'), assistantEv(2), replaceEv(3, 1, 1, '改后')])
+  const res = fakeRes()
+  await handleEditApi(
+    fakeReq('POST', '/cyrene-edit-api', JSON.stringify({ sessionId: 's1', targetSeq: 3 })),
+    res,
+    { get: () => session }
+  )
+  assert.equal(res.status, 200)
+  assert.equal(session.appended.length, 0)
+})
+
+test('接口：POST targetSeq 不在链上 → 409', async () => {
+  const session = fakeSession([userEv(1, '原话'), assistantEv(2), replaceEv(3, 1, 1, '改后')])
+  const res = fakeRes()
+  await handleEditApi(
+    fakeReq('POST', '/cyrene-edit-api', JSON.stringify({ sessionId: 's1', targetSeq: 2 })),
+    res,
+    { get: () => session }
+  )
+  assert.equal(res.status, 409)
+  assert.equal(session.appended.length, 0)
 })
 
 // ───────────────────────── 接口 ─────────────────────────

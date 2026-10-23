@@ -264,6 +264,52 @@ export function planEdit(events) {
 }
 
 /**
+ * 取「最后一条用户消息」的版本链（旧 → 新）。
+ *
+ * 编辑就是一次**单节点表面替换**：新事件把旧的那一格顶掉。于是版本链可以这样倒推：
+ * 当前节点如果本身是一次替换（`surfaceOp.startSeq === endSeq`），它盖掉的那个节点
+ * 就是上一版；再往上同理。链最长留 20 版，防坏日志死循环。
+ *
+ * 这样「方向键切换」不需要额外存任何东西 —— 版本链完全从事件日志里读出来。
+ * @param events - 按 seq 升序的事件数组。
+ * @returns `{ versions: [{ seq, text, time }], currentIndex }`；没有用户消息时 versions 为空。
+ */
+export function versionChain(events) {
+  const bySeq = new Map();
+  for (const event of Array.isArray(events) ? events : []) bySeq.set(event.seq, event);
+  const nodes = foldSurface(events);
+  let idx = -1;
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const event = bySeq.get(nodes[i]);
+    if (event?.type === 'user/message' && event.data?.source?.kind === 'user') {
+      idx = i;
+      break;
+    }
+  }
+  if (idx === -1) return { versions: [], currentIndex: -1 };
+
+  const chain = [bySeq.get(nodes[idx])];
+  for (let guard = 0; guard < 20; guard += 1) {
+    const current = chain[0];
+    const op = current?.surfaceOp;
+    if (op === undefined || op === 'append' || op.startSeq !== op.endSeq) break;
+    const previous = bySeq.get(op.startSeq);
+    if (previous === undefined) break;
+    chain.unshift(previous);
+  }
+
+  const textOf = (event) => (Array.isArray(event?.data?.content) ? event.data.content : [])
+    .filter((block) => block?.type === 'text')
+    .map((block) => String(block.text ?? ''))
+    .join('\n')
+    .trim();
+  return {
+    versions: chain.map((event) => ({ seq: event.seq, text: textOf(event), time: event.time })),
+    currentIndex: chain.length - 1
+  };
+}
+
+/**
  * `/cyrene-edit-api` 的处理器。
  *
  *   GET  ?sessionId=...  → 最后一条用户消息的文本 + 能不能编辑
@@ -287,10 +333,25 @@ export async function handleEditApi(req, res, sessions) {
         json(res, { ok: false, error: '找不到这个会话' }, 404);
         return;
       }
-      const plan = planEdit(session.snapshotEvents(0, session.seq));
+      const events = session.snapshotEvents(0, session.seq);
+      const plan = planEdit(events);
+      const chain = versionChain(events);
       json(res, plan.ok
-        ? { ok: true, text: plan.text, canEdit: true }
-        : { ok: true, text: '', canEdit: false, reason: plan.reason });
+        ? {
+          ok: true,
+          text: plan.text,
+          canEdit: true,
+          versions: chain.versions.map((version, index) => ({ ...version, current: index === chain.currentIndex })),
+          currentIndex: chain.currentIndex
+        }
+        : {
+          ok: true,
+          text: '',
+          canEdit: false,
+          reason: plan.reason,
+          versions: chain.versions.map((version, index) => ({ ...version, current: index === chain.currentIndex })),
+          currentIndex: chain.currentIndex
+        });
       return;
     }
     if (req.method !== 'POST') {
@@ -306,6 +367,47 @@ export async function handleEditApi(req, res, sessions) {
       return;
     }
     const sessionId = String(payload.sessionId || '');
+
+    // 切版本：把「最后一条用户消息」换回历史里的某一版（再 append 一次单节点替换）。
+    if (payload.targetSeq !== undefined) {
+      const session = sessions?.get?.(sessionId);
+      if (session === undefined || session === null) {
+        json(res, { ok: false, error: '找不到这个会话' }, 404);
+        return;
+      }
+      const events = session.snapshotEvents(0, session.seq);
+      const chain = versionChain(events);
+      const targetIndex = chain.versions.findIndex((version) => version.seq === Number(payload.targetSeq));
+      if (targetIndex === -1) {
+        json(res, { ok: false, error: '这个版本不在最后一条消息的历史里' }, 409);
+        return;
+      }
+      if (targetIndex === chain.currentIndex) {
+        json(res, { ok: true, text: chain.versions[targetIndex].text, currentIndex: targetIndex });
+        return;
+      }
+      const target = events.find((event) => event.seq === Number(payload.targetSeq));
+      if (target === undefined) {
+        json(res, { ok: false, error: '找不到这个版本' }, 409);
+        return;
+      }
+      session.append('user/message', {
+        id: randomUUID(),
+        role: 'user',
+        content: target.data.content,
+        source: { ...(target.data.source ?? { kind: 'user' }) }
+      }, {
+        surfaceOp: {
+          op: 'replace',
+          startSeq: chain.versions[chain.currentIndex].seq,
+          endSeq: chain.versions[chain.currentIndex].seq
+        },
+        sourceEventSeqs: [chain.versions[chain.currentIndex].seq]
+      });
+      json(res, { ok: true, text: chain.versions[targetIndex].text, currentIndex: targetIndex });
+      return;
+    }
+
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
     // keep（默认）= 只换这一条、后续回复保留；truncate = 连同后续一起撤回（改口重说）。
     const mode = payload.mode === 'truncate' ? 'truncate' : payload.mode === 'keep' || payload.mode === undefined ? 'keep' : '';

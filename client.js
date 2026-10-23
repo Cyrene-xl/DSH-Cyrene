@@ -55,6 +55,13 @@ window.__ModuleLoader__.load({
     var EDIT_ICON = '/cyrene-edit-icon.png';
     /** 编辑器 / 按钮的 DOM 标记，避免和页面其它节点混在一起。 */
     var EDIT_BTN_CLASS = 'dsh-cyrene-edit-btn';
+    /** 版本切换按钮（‹ ›）的类名。 */
+    var VERSION_BTN_CLASS = 'dsh-cyrene-version-btn';
+    /**
+     * 版本链缓存：{ sessionId, at, versions, currentIndex, loading }。
+     * 每次渲染都去问主机会太吵，这里 2 秒内复用；点箭头后立刻作废。
+     */
+    var versionsState = { sessionId: '', at: 0, versions: [], currentIndex: -1, loading: false };
     var EDIT_MODAL_ATTR = 'data-dsh-cyrene-edit-modal';
 
     //#region 行样式（与官方设置行一致）
@@ -262,6 +269,13 @@ window.__ModuleLoader__.load({
         'background:transparent;cursor:pointer;opacity:.55;transition:opacity .12s ease,background .12s ease;}',
         '.' + EDIT_BTN_CLASS + ':hover{opacity:1;background:var(--dsw-alias-bg-module-platform);}',
         '.' + EDIT_BTN_CLASS + ' img{display:block;width:14px;height:14px;}',
+        '.' + VERSION_BTN_CLASS + '{display:inline-flex;align-items:center;justify-content:center;',
+        'min-width:18px;height:22px;margin:0;padding:0 3px;border:none;border-radius:6px;',
+        'background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;',
+        'font:inherit;font-size:13px;line-height:18px;opacity:.7;}',
+        '.' + VERSION_BTN_CLASS + ':hover{opacity:1;background:var(--dsw-alias-bg-module-platform);}',
+        '.dsh-cyrene-version-count{font:inherit;font-size:11px;color:var(--dsw-alias-label-tertiary);',
+        'padding:0 2px;white-space:nowrap;}',
         '.dsh-cyrene-toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);',
         'background:rgba(24,24,24,.92);color:#fff;font-size:13px;line-height:20px;padding:8px 14px;',
         'border-radius:10px;z-index:2147483600;pointer-events:none;max-width:80vw;}'
@@ -437,6 +451,61 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 拉版本链（2 秒内复用缓存）。失败就当作没有版本，不打扰用户。
+     * @param sessionId - 会话 id。
+     */
+    function refreshVersions(sessionId) {
+      var now = Date.now();
+      if (versionsState.loading) return;
+      if (versionsState.sessionId === sessionId && now - versionsState.at < 2000) return;
+      versionsState.loading = true;
+      fetch(EDIT_API + '?session=' + encodeURIComponent(sessionId), { headers: { accept: 'application/json' } })
+        .then(function (res) { return res.json(); })
+        .then(function (body) {
+          versionsState = {
+            sessionId: sessionId,
+            at: Date.now(),
+            versions: body && Array.isArray(body.versions) ? body.versions : [],
+            currentIndex: body && Number.isInteger(body.currentIndex) ? body.currentIndex : -1,
+            loading: false
+          };
+          scheduleEditPatch();
+        })
+        .catch(function () {
+          versionsState = { sessionId: sessionId, at: Date.now(), versions: [], currentIndex: -1, loading: false };
+        });
+    }
+
+    /**
+     * 切到某一版（写历史：再 append 一次单节点替换）。
+     * @param sessionId - 会话 id。
+     * @param targetSeq - 目标版本的事件 seq。
+     */
+    function switchVersion(sessionId, targetSeq) {
+      toast('切换中…');
+      fetch(EDIT_API, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId, targetSeq: targetSeq })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (body) {
+          if (!body || body.ok !== true) throw new Error((body && body.error) || '切换失败');
+          versionsState.at = 0;
+          versionsState.loading = false;
+          scheduleEditPatch();
+          toast('已切到这一版');
+          window.setTimeout(function () { patchEditButtons(); }, 600);
+        })
+        .catch(function (err) { toast(String((err && err.message) || err)); });
+    }
+
+    /** 版本角标里的序号（1 起）。 */
+    function versionLabel(index, total) {
+      return (index + 1) + '/' + total;
+    }
+
+    /**
      * 往最后一条用户消息的操作区塞铅笔按钮（其它行清掉）。
      * 幂等：React 重渲染把按钮冲掉之后，下一轮 mutation 会补回来。
      */
@@ -449,13 +518,17 @@ window.__ModuleLoader__.load({
       }
       var session = currentSession();
       var allowed = last !== null && isChatSession(session);
+      var sessionId = allowed ? String(session.id || '') : '';
+      if (allowed) refreshVersions(sessionId);
 
       for (var i = 0; i < rows.length; i += 1) {
         var row = rows[i];
         var owner = row === last && allowed;
-        var existing = row.querySelectorAll('.' + EDIT_BTN_CLASS);
+        var existing = row.querySelectorAll(
+          '.' + EDIT_BTN_CLASS + ',.' + VERSION_BTN_CLASS + ',.dsh-cyrene-version-count'
+        );
         for (var j = 0; j < existing.length; j += 1) {
-          if (!owner) existing[j].parentNode.removeChild(existing[j]);
+          if (!owner && existing[j].parentNode !== null) existing[j].parentNode.removeChild(existing[j]);
         }
         if (!owner) continue;
         /* 已经有一个就不重复塞（每轮 mutation 都会进来）。 */
@@ -476,6 +549,40 @@ window.__ModuleLoader__.load({
           event.stopPropagation();
           startEdit();
         });
+
+        /* 有历史版本时，在铅笔前面加 ‹ 1/2 ›。 */
+        var chain = versionsState.sessionId === sessionId ? versionsState.versions : [];
+        if (chain.length > 1) {
+          var index = versionsState.currentIndex;
+          var count = document.createElement('span');
+          count.className = 'dsh-cyrene-version-count';
+          count.textContent = versionLabel(index, chain.length);
+          var prev = document.createElement('button');
+          prev.type = 'button';
+          prev.className = VERSION_BTN_CLASS;
+          prev.textContent = '‹';
+          prev.title = '切回上一版';
+          prev.disabled = index <= 0;
+          prev.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            switchVersion(sessionId, chain[index - 1].seq);
+          });
+          var next = document.createElement('button');
+          next.type = 'button';
+          next.className = VERSION_BTN_CLASS;
+          next.textContent = '›';
+          next.title = '切到下一版';
+          next.disabled = index >= chain.length - 1;
+          next.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            switchVersion(sessionId, chain[index + 1].seq);
+          });
+          host.appendChild(prev);
+          host.appendChild(count);
+          host.appendChild(next);
+        }
         host.appendChild(button);
       }
     }
