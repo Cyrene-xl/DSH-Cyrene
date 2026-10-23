@@ -132,6 +132,36 @@ guarded('预设：语气补充（本项目补充）必须在，且只属于对�
   assert.equal(work.includes('自称与「♪」的用量'), false, '工作模式不该带这段');
 });
 
+guarded('预设：工作模式也补了「通用语气规则」（上游的第五层）', () => {
+  // 上游 tone-injector.ts 的语气规则是**每轮尾部注入、所有模式都吃**的；我们合成静态
+  // 正文后那个时序机制没了 —— chat 预设补过，work 预设曾经漏了。这条守着别漏回去。
+  const work = readFileSync(presetFile('cyrene-work'), 'utf8')
+  assert.ok(work.includes('## 语气规则（本项目补充，非上游正文）'), '工作模式必须有语气规则段');
+  for (const line of [
+    '不可以使用「不是……而是……」结构',
+    '自称：表达情感、撒娇、被打动时用「人家」',
+    '结尾常用反问把话交给对方',
+    '优先回应情绪，再回应内容',
+  ]) {
+    assert.ok(work.includes(line), `上游原文缺了：${line}`);
+  }
+  // 三处工作场景例外必须在（否则会和写法要求/追问节制打架）
+  assert.ok(work.includes('### 工作场景的三处例外（本项目补充，非上游正文）'), '三处例外必须在');
+  for (const keyword of ['反问收尾等于把决定推回给对方', '先给结论或判断', '要指出问题与改法']) {
+    assert.ok(work.includes(keyword), `例外条目缺了：${keyword}`);
+  }
+  // 顺序：语气规则 → 例外 → 追问节制（覆盖关系必须"后写"）。
+  // 断言要锚在**真正的标题行**上：文件头注释里也引用了这些标题（写作「## 语气规则」，
+  // 没有「（本项目补充）」后缀），用 indexOf 找裸标题会命中注释、把顺序比反。
+  const at = (heading) => work.indexOf('\n      ' + heading);
+  const tone = at('## 语气规则（本项目补充，非上游正文）');
+  const exceptions = at('### 工作场景的三处例外（本项目补充，非上游正文）');
+  const followUp = at('## 追问节制（本项目补充，非上游正文）');
+  assert.ok(tone !== -1 && exceptions !== -1 && followUp !== -1, '三个标题行都要真的存在（不只是注释里被提到）');
+  assert.ok(tone < exceptions, '三处例外必须排在语气规则之后');
+  assert.ok(exceptions < followUp, '追问节制必须排在最后（它是更硬的覆盖）');
+})
+
 guarded('预设：表达风格只挂对话模式 —— 工作模式禁用（安全约定）', () => {
   // 风格只改"怎么说"，但它确实是往提示词里塞话；工作模式带 shell / 文件 / 网络
   // 这些真能动东西的工具，一份带着强烈依恋感的写作风格配上权限就是越权的诱因。

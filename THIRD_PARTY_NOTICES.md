@@ -54,6 +54,19 @@
 - 上游许可证：MIT License，`Copyright (c) 2026 Playa`
 - 许可证副本：见 [`LICENSES/Cyrene-Agent-LICENSE.txt`](./LICENSES/Cyrene-Agent-LICENSE.txt)
 
+### 工作模式预设（`preset/cyrene-work/`）
+
+- 源文件：`prompts/work_system.md`、`work_identity.md`、`work_remark.md`、
+  `canon_quotes_lite.md`，另接 `tool_usage.md`（上游把它拼进"工具系统内容"，chat 模式不拼）。
+- **语气规则**：与对话模式同样来自上游 `tone-injector.ts` 的 `DEFAULT_RULES`（原文照搬）。
+  上游这份规则是**每轮请求尾部注入、所有模式都吃**的（`build-options.ts` 无条件调用），
+  所以工作模式本来就该有这一层；本仓库把它并入静态正文。
+- **本仓库新增**：该段开头的覆盖说明，以及「### 工作场景的三处例外」三小节
+  （结尾反问 / 先回应情绪 / 不说教在工作场景里要收窄或反过来）。这三条是**本项目自己写的**，
+  不在上游任何文件里 —— 上游靠注入时序、我们靠显式声明；起因是静态正文后
+  这三条会与 `work_system` 的评审要求、以及本仓库的「## 追问节制」直接打架。
+- 「## 追问节制」同样是本项目补充（非上游正文），理由见预设文件头注释。
+
 ### 风格档位文件（`styles/`）
 
 表达风格插件的五份风格文件是上游 `prompts/styles/` 的**原文**，一字未改：
