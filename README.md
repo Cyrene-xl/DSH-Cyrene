@@ -147,28 +147,31 @@ node scripts/install.mjs
 `preset/chat/` → `~/.dsh/.agent-presets/chat/`，
 `preset/cyrene-work/` → `~/.dsh/.agent-presets/cyrene-work/`。
 
-> ### ⚠️ DSH 0.2.0 及以上：上面这一步**不会生效**（而且不报错）
+> ### ⚠️ DSH 0.2.0 及以上：目录方式**不会生效**（而且不报错）
 >
 > 0.2.0 起预设改为**声明式注册表**，官方文档原话是「注册表不扫描目录，也不接受
-> preset 路径」。此时 `scripts/install.*` 依然会成功执行、依然打印"已安装"，
+> preset 路径」。此时 `scripts/install.*` 拷目录会照常成功、照常打印"已安装"，
 > 但预设**不会出现在界面上**，也没有任何报错。
 >
-> 这一代的正确做法是声明：
+> **2026-10 起这一步已经自动化了**：只要先把插件装进 profile（安装第 1 步），
+> 再跑同一个脚本，它会：
 >
-> ```bash
-> node scripts/export-preset-declarations.mjs --out=preset-declarations.yml
-> ```
+> 1. 认出哪些 profile 属于"声明式注册表"那一代（看 profile 的
+>    `node_modules/@deepseek-ai/dsh-agent-preset` 在不在）；
+> 2. 把两套预设的声明**自动写进**该 profile 的 `cordis.patch.yml`（先备份、幂等，
+>    已有内容只追加不覆盖，空补丁的 `[]` 会被正确替换）；
+> 3. 同时仍写一份目录副本 —— 同一台机器上若有 0.1.x 的 profile，那边靠它。
 >
-> 生成的内容贴进 `<DSH_HOME>/profiles/<你的 profile>/cordis.patch.yml`。
-> 那个文件顶层是一个数组，把生成的内容**作为一个新元素追加进去**即可。
+> 所以 **0.2.0+ 用户不需要再手动跑 `export-preset-declarations` 再手贴**。
+> 装完重启 DSH 即可。
 >
-> ⚠️ 生成的内容**自带 `- insert:` 那一层，别把它去掉**。patch 数组里的条目分两种：
-> 带 `insert` 的是"插入新行"，不带 `insert` 而带 `id` 的是"**按 id 覆盖一个已有条目**"。
-> 少了 `insert`，我们的声明会被当成后者 —— 而那个 preset id 并不存在，于是被
-> **静默跳过**：文件看着改了，模式却不会出现，且没有任何报错。
+> 为什么声明不直接塞进本包的 `cordis.patch.yml`（那样"装插件即注册"更省事）：
+> 那一行在 **0.1.x 上根本解析不到**，实测会让整个 DSH 起不来
+> （`ERR_MODULE_NOT_FOUND`）。所以按代数分流，而不是一刀切。
 >
-> **怎么判断自己是哪一代？** 界面里模式选择器没出现本项目的两个模式、
-> 但目录确实装好了 —— 那就是 0.2.0+，用上面的声明方式。
+> 手贴的路仍然保留（profile 在非默认位置时用）。注意生成的内容**自带 `- insert:`
+> 那层，别去掉** —— patch 里不带 `insert` 而带 `id` 的条目是"按 id 覆盖已有条目"，
+> 少了它我们的声明会被静默跳过。
 
 预设 id 是**自动发现**的（扫描含 `agent.cordis.yml` 的子目录），所以以后新增预设
 只要在 `preset/` 下新建目录，四个安装脚本都不用改。

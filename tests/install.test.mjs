@@ -1,0 +1,116 @@
+/**
+ * scripts/install.mjs 的分流测试。
+ *
+ * 两种 DSH 代数，同一台机器上都可能出现，行为完全不同：
+ *   - 0.1.x：目录扫描 → 往 `<DSH_HOME>/.agent-presets/` 拷
+ *   - 0.2.0+：声明式注册表 → 往对应 profile 的 `cordis.patch.yml` 写声明
+ *
+ * 这里用临时 `DSH_HOME` 真跑脚本（不是模拟），因为这段逻辑的价值就在"实际行为"：
+ * 会写错文件、会覆盖别人的补丁、会重复追加，这些只有跑起来才看得见。
+ */
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(here, '..')
+const INSTALL = join(repoRoot, 'scripts', 'install.mjs')
+const ROOTS = []
+
+/** 造一个临时 DSH_HOME；`profiles` 里按需建出声明式/老式的假 profile。 */
+function makeHome({ declarative = [], legacy = ['p-old'] } = {}) {
+  const home = mkdtempSync(join(tmpdir(), 'cyrene-install-'))
+  ROOTS.push(home)
+  mkdirSync(join(home, 'profiles'), { recursive: true })
+  for (const name of declarative) {
+    const dir = join(home, 'profiles', name, 'node_modules')
+    // 声明式那代才有的注册表插件 —— 脚本靠它在不在判断代数
+    mkdirSync(join(dir, '@deepseek-ai', 'dsh-agent-preset'), { recursive: true })
+    // 本包也必须在 profile 里，否则脚本不去动它
+    mkdirSync(join(dir, 'dsh-cyrene'), { recursive: true })
+  }
+  for (const name of legacy) mkdirSync(join(home, 'profiles', name), { recursive: true })
+  return home
+}
+
+/** 跑一次安装脚本。 */
+function runInstall(home) {
+  return execFileSync(process.execPath, [INSTALL], {
+    encoding: 'utf8',
+    env: { ...process.env, DSH_HOME: home },
+  })
+}
+
+test('声明式代：把两套预设写进 profile 补丁，替换空补丁的 []', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  const out = runInstall(home)
+  const text = readFileSync(patch, 'utf8')
+
+  assert.ok(text.includes('dsh-cyrene 预设声明'), '应写入我们的标记')
+  assert.ok(text.includes('preset-chat'), '应包含 chat 声明')
+  assert.ok(text.includes('preset-cyrene-work'), '应包含 cyrene-work 声明')
+  assert.equal(text.match(/^\{?- insert:/gm)?.length ?? text.split('\n').filter((l) => l === '- insert:').length, 2, '两套预设两个 insert 块')
+  assert.ok(!text.startsWith('[]'), '空数组必须被替换，不能变成 "[] - insert:"')
+  assert.ok(out.includes('不需要再手动贴'), '提示应说明不需要手动贴')
+})
+
+test('声明式代：重复跑是幂等的，不会重复追加', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  runInstall(home)
+  const first = readFileSync(patch, 'utf8')
+  runInstall(home)
+  const second = readFileSync(patch, 'utf8')
+
+  assert.equal(second, first, '第二次不应改动文件')
+  assert.equal(second.split('dsh-cyrene 预设声明').length - 1, 1, '标记只能有一处')
+})
+
+test('声明式代：已有内容的补丁是追加，不是覆盖', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  const mine = '- insert:\n    - id: mine\n      name: my-plugin\n'
+  writeFileSync(patch, mine, 'utf8')
+
+  runInstall(home)
+  const text = readFileSync(patch, 'utf8')
+
+  assert.ok(text.startsWith(mine.trim()), '用户原有内容必须原样保留在最前面')
+  assert.ok(text.includes('dsh-cyrene 预设声明'), '我们的声明追加在后面')
+  assert.ok(existsSync(`${patch}.bak.`) === false || true, '备份文件是带时间戳的，不在这里断言')
+})
+
+test('老式（0.1.x）：仍然往 .agent-presets 拷目录，并提示 0.2+ 的正确顺序', () => {
+  const home = makeHome({ declarative: [], legacy: ['p-old'] })
+  const out = runInstall(home)
+
+  assert.ok(existsSync(join(home, '.agent-presets', 'chat', 'agent.cordis.yml')), 'chat 预设应被拷贝')
+  assert.ok(existsSync(join(home, '.agent-presets', 'cyrene-work', 'agent.cordis.yml')), 'cyrene-work 预设应被拷贝')
+  assert.ok(out.includes('不会生效'), '应提示 0.2.0+ 目录方式无效')
+  assert.ok(out.includes('先把插件装进 profile'), '应给出正确顺序')
+})
+
+test('混合：声明式 profile 写声明，同时仍保留目录副本给老版本', () => {
+  const home = makeHome({ declarative: ['p-new'], legacy: ['p-old'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  runInstall(home)
+  assert.ok(readFileSync(patch, 'utf8').includes('preset-chat'), '声明式 profile 应拿到声明')
+  assert.ok(existsSync(join(home, '.agent-presets', 'chat')), '目录副本也要有（同一机器上的 0.1.x 要用）')
+})
+
+test('清理临时目录', () => {
+  for (const root of ROOTS) {
+    if (existsSync(root)) rmSync(root, { recursive: true, force: true })
+  }
+})

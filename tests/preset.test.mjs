@@ -116,6 +116,22 @@ guarded('预设：两套预设挂的插件不完全相同 —— 别把「挂预
   assert.ok(!workIds.includes('cyrene-nickname'), 'cyrene-work 不应挂 cyrene-nickname');
 });
 
+guarded('预设：语气补充（本项目补充）必须在，且只属于对话模式', () => {
+  // 这两条来自外部评价/衍生版的观察：固定 7:3 会让她机械换词，♪ 会退化成句尾标点。
+  // 它们是对上游正文的**补充覆盖**，所以放在「语气规则」之后，并标明非上游正文。
+  const chat = readFileSync(presetFile('chat'), 'utf8')
+  assert.ok(chat.includes('自称与「♪」的用量（本项目补充，非上游正文）'), '项目补充段不能丢');
+  assert.ok(chat.includes('短回复最多 1 个'), '♪ 的数量上限要在');
+  assert.ok(chat.includes('这个切换本身就是情绪信号'), '自称按情境切换要在');
+  assert.ok(
+    chat.indexOf('自称与「♪」的用量') > chat.indexOf('## 语气规则'),
+    '补充段必须排在语气规则之后（覆盖关系）',
+  );
+  // 工作模式不用 soul.md，也就不该带这段
+  const work = readFileSync(presetFile('cyrene-work'), 'utf8')
+  assert.equal(work.includes('自称与「♪」的用量'), false, '工作模式不该带这段');
+});
+
 guarded('预设：表达风格只挂对话模式 —— 工作模式禁用（安全约定）', () => {
   // 风格只改"怎么说"，但它确实是往提示词里塞话；工作模式带 shell / 文件 / 网络
   // 这些真能动东西的工具，一份带着强烈依恋感的写作风格配上权限就是越权的诱因。
