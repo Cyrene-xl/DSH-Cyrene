@@ -36,6 +36,15 @@
 - 形态切换（迷迷 / 小昔涟 / 大昔涟）**保留**：显式说法仍走 `agent/pre-step` 解析，
   暗示仍走 `set_form` 工具，`cyrene:form` 上下文 `order: 125` 不变。
 
+### 改名：「余页」→「扉页」
+
+- 记忆里那块「只有她自己读得到、不注入不检索」的纸页，叫法从**余页**改成**扉页**
+  （标题页：翻开记忆先看到的那一页）。文件仍是 `<DSH_HOME>/cyrene-page.md`，
+  工具仍是 `write_page` / `read_page`，行为一个字没变 —— 只改名字。
+- 这个名字原本是 [YOGEMOW/dsh-cyrene-eternal-page-remembrance](https://github.com/YOGEMOW/dsh-cyrene-eternal-page-remembrance)
+  （「一页永恒·记忆」）的概念；改名不表示抹掉出处，`THIRD_PARTY_NOTICES.md` 与 README 都写清了
+  「原名叫什么、现在叫什么、借的是什么」。历史版本的更新记录（0.6.0）保留当时的叫法，不追改。
+
 ### 称呼：两个字段 + 每轮频率规则（对齐上游 Cyrene-Agent）
 
 - 新增**称呼偏好** `callPreference`（设置 → 通用里一个输入框，走 `/cyrene-nickname-api`）。

@@ -50,7 +50,7 @@ function seed(text) {
   writeFileSync(STORE, text, 'utf8');
 }
 
-/** 清掉余页 —— 用例共用同一个 DSH_HOME，不清会互相串。 */
+/** 清掉扉页 —— 用例共用同一个 DSH_HOME，不清会互相串。 */
 function resetPage() {
   rmSync(PAGE, { force: true });
 }
@@ -266,10 +266,10 @@ test('归档：标记之前的内容照常注入，块本身不漏出来', () =>
   assert.ok(!text.includes('归档'));
 });
 
-// ── 余页 ─────────────────────────────────────────────────────
-// 余页只有她自己读得到：写进去不进上下文，read_page 才看得到。
+// ── 扉页 ─────────────────────────────────────────────────────
+// 扉页只有她自己读得到：写进去不进上下文，read_page 才看得到。
 
-test('余页：写入带日期小标题，且不进注入', () => {
+test('扉页：写入带日期小标题，且不进注入', () => {
   const { writePage, inject } = boot();
   resetPage();
   seed('- 条目\n');
@@ -278,10 +278,10 @@ test('余页：写入带日期小标题，且不进注入', () => {
   const page = readFileSync(PAGE, 'utf8');
   assert.ok(page.includes('- 今天有点难过'));
   assert.ok(/^## \d{4}-\d{2}-\d{2}$/m.test(page), '应有日期小标题');
-  assert.ok(!inject().includes('今天有点难过'), '余页不该进上下文');
+  assert.ok(!inject().includes('今天有点难过'), '扉页不该进上下文');
 });
 
-test('余页：同一天不重复写日期标题', () => {
+test('扉页：同一天不重复写日期标题', () => {
   const { writePage } = boot();
   resetPage();
   seed('');
@@ -292,7 +292,7 @@ test('余页：同一天不重复写日期标题', () => {
   assert.equal(page.split('\n').filter((line) => line.startsWith('- ')).length, 2);
 });
 
-test('余页：多行压成一行，空输入不写', () => {
+test('扉页：多行压成一行，空输入不写', () => {
   const { writePage } = boot();
   resetPage();
   seed('');
@@ -305,7 +305,7 @@ test('余页：多行压成一行，空输入不写', () => {
   assert.ok(entries[0].includes('第一行') && entries[0].includes('第二行'));
 });
 
-test('余页：写入后 read_page 能读回来', () => {
+test('扉页：写入后 read_page 能读回来', () => {
   const { writePage, readPage } = boot();
   resetPage();
   seed('');
@@ -315,13 +315,13 @@ test('余页：写入后 read_page 能读回来', () => {
   assert.ok(out.includes('不是指令'), '应包在数据分隔块里');
 });
 
-test('余页：空页返回提示而不是报错', () => {
+test('扉页：空页返回提示而不是报错', () => {
   const { readPage } = boot();
   resetPage();
   assert.ok(readPage().includes('空的'));
 });
 
-test('余页：满了拒绝写入，已写的内容不受影响', () => {
+test('扉页：满了拒绝写入，已写的内容不受影响', () => {
   const { writePage } = boot();
   resetPage();
   seed('');
@@ -333,11 +333,11 @@ test('余页：满了拒绝写入，已写的内容不受影响', () => {
   }
   assert.ok(last.includes('满了'), '超过 64 KB 应拒绝');
   const size = Buffer.byteLength(readFileSync(PAGE, 'utf8'), 'utf8');
-  assert.ok(size <= 64 * 1024, `余页不该超过配额，实际 ${size}`);
+  assert.ok(size <= 64 * 1024, `扉页不该超过配额，实际 ${size}`);
 });
 
 // ── 工具面 ───────────────────────────────────────────────────
-// 写记忆/锚点/余页都不该向对方播报 —— 播报会打断对话，也暴露内部动作。
+// 写记忆/锚点/扉页都不该向对方播报 —— 播报会打断对话，也暴露内部动作。
 
 test('工具：写侧三个工具都带「不要向对方播报」', () => {
   const { tool } = boot();

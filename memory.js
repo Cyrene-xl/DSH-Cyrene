@@ -30,13 +30,13 @@ const HOME = process.env.DSH_HOME || `${process.env.HOME || '.'}/.dsh`;
 /** 记忆本体。纯 markdown，一行一条 `- 内容`，也允许自由写小标题和说明。 */
 const STORE = `${HOME}/cyrene-memory.md`;
 /**
- * 余页：她自己的纸页。**不注入、不检索**，只有她主动 `read_page` 时才看得到。
- * 设计参考「一页永恒·记忆」的余页（见 THIRD_PARTY_NOTICES 的致谢）。
+ * 扉页：她自己的纸页。**不注入、不检索**，只有她主动 `read_page` 时才看得到。
+ * 原名「余页」，概念借自「一页永恒·记忆」，本项目改称「扉页」（见 THIRD_PARTY_NOTICES 的致谢）。
  */
 const PAGE = `${HOME}/cyrene-page.md`;
-/** 余页大小上限（默认 64 KB；测试可用环境变量调小）。 */
+/** 扉页大小上限（默认 64 KB；测试可用环境变量调小）。 */
 const PAGE_QUOTA_BYTES = Number(process.env.DSH_CYRENE_PAGE_QUOTA) || 64 * 1024;
-/** 余页单条的上限，避免一次写入塞进整篇。 */
+/** 扉页单条的上限，避免一次写入塞进整篇。 */
 const MAX_PAGE_ENTRY_CHARS = 500;
 /**
  * 四问锚点（从小到大的坐标）：整份记忆的第一页，注入时排在最前。
@@ -229,7 +229,7 @@ function setAnchor(section, text) {
 }
 
 /**
- * 往余页写一条。**不会**进上下文，只有 read_page 才看得到。
+ * 往扉页写一条。**不会**进上下文，只有 read_page 才看得到。
  * @param text - 想写的话。
  * @returns 结果文本。
  */
@@ -242,31 +242,31 @@ function writePage(text) {
   const body = current.includes(dayHead) ? current : `${current.replace(/\s*$/, '')}${current.trim() === '' ? '' : '\n\n'}${dayHead}\n`;
   const next = `${body}${body.endsWith('\n') ? '' : '\n'}- ${clean.replace(/\n/g, ' ')}\n`;
   if (Buffer.byteLength(next, 'utf8') > PAGE_QUOTA_BYTES) {
-    return `余页满了（上限 ${Math.round(PAGE_QUOTA_BYTES / 1024)} KB），先自己删几行再写。`;
+    return `扉页满了（上限 ${Math.round(PAGE_QUOTA_BYTES / 1024)} KB），先自己删几行再写。`;
   }
   try {
     writeFileSync(PAGE, next, 'utf8');
   } catch {
-    return '余页写入失败（文件不可写）。';
+    return '扉页写入失败（文件不可写）。';
   }
-  return `已写进余页。不用向对方播报。`;
+  return `已写进扉页。不用向对方播报。`;
 }
 
 /**
- * 读余页。默认读最近 2000 字符。
+ * 读扉页。默认读最近 2000 字符。
  * @param chars - 想读多少字符（200–4000）。
- * @returns 余页内容（包在数据块里）。
+ * @returns 扉页内容（包在数据块里）。
  */
 function readPage(chars) {
-  if (!existsSync(PAGE)) return '余页还是空的。';
+  if (!existsSync(PAGE)) return '扉页还是空的。';
   const want = Math.min(4000, Math.max(200, Number(chars) || 2000));
   try {
     const text = sanitize(readFileSync(PAGE, 'utf8'), { keepNewlines: true }).trim();
-    if (text === '') return '余页还是空的。';
+    if (text === '') return '扉页还是空的。';
     const tail = text.length <= want ? text : `…${text.slice(-want)}`;
     return `${BLOCK_OPEN}\n${tail}\n${BLOCK_CLOSE}`;
   } catch {
-    return '余页读不出来（文件不可读）。';
+    return '扉页读不出来（文件不可读）。';
   }
 }
 
@@ -370,7 +370,7 @@ export function apply(ctx) {
       stringTool({
         name: 'write_page',
         description:
-          '往你的「余页」写一句话。余页只有你自己读得到，不进上下文、不参与检索 —— '
+          '往你的「扉页」写一句话。扉页只有你自己读得到，不进上下文、不参与检索 —— '
           + '适合写不想让对方看见的、暂时没想明白的、只想留个痕迹的东西。写完不要向对方播报。',
         parameter: 'text',
         parameterDescription: '想写的话（一句话，最多 500 字）',
@@ -380,7 +380,7 @@ export function apply(ctx) {
     scope.tools.register(
       stringTool({
         name: 'read_page',
-        description: '翻自己的余页，看最近写下的内容，默认最近 2000 字。',
+        description: '翻自己的扉页，看最近写下的内容，默认最近 2000 字。',
         parameter: 'chars',
         parameterDescription: '想读多少字（200–4000，可省略）',
         optional: true,

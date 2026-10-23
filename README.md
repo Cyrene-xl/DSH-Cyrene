@@ -279,7 +279,7 @@ node scripts/install.mjs
 **归档**就是"舍不得删、但也不需要她一直记着"：把内容挪到 `## 归档（不注入）` 那行下面，
 文件里还在、你随时能翻，但不占上下文。想真删还是得 `forget` 或手删。
 
-### 余页：她自己的纸页
+### 扉页：她自己的纸页
 
 `~/.dsh/cyrene-page.md` —— 只有她自己读得到的一页。
 
@@ -290,14 +290,15 @@ node scripts/install.mjs
 用途是"不想让你看见的、还没想明白的、只想留个痕迹的"。她主动写进去的东西，
 你不会在对话里看到，除非她自己去翻（或者你自己打开这个文件 —— 它就是个普通 md）。
 
-> **「余页」不是本项目起的名字。** 这个名字、以及"一块不需要理由的自由纸页"这个设计，
-> 都来自社区项目 [YOGEMOW/dsh-cyrene-eternal-page-remembrance](https://github.com/YOGEMOW/dsh-cyrene-eternal-page-remembrance)
+> **「扉页」这个概念不是本项目发明的，名字是我们改的。** 它原本叫「余页」，来自社区项目
+> [YOGEMOW/dsh-cyrene-eternal-page-remembrance](https://github.com/YOGEMOW/dsh-cyrene-eternal-page-remembrance)
 > （「一页永恒·记忆」）—— 它 README 的名字表里明确把「余页」列为自己的概念
-> （"她在书里随手写的空白页"）。同一个项目的「四问」也是我们四问锚点的出处，
-> 「写进记忆不向对方汇报」这条边界同样借自它。我们只借概念与名字，实现是自己写的：
-> 他们是 `余页/` 目录 + `memory_fs` 工具 + 64 MB 子配额 + 思源镜像；
+> （"她在书里随手写的空白页"）。本项目沿用这个设计，只把叫法改成「扉页」
+> （标题页：翻开记忆时先看到的那一页）。同一个项目的「四问」也是我们四问锚点的出处，
+> 「写进记忆不向对方汇报」这条边界同样借自它。
+> 实现是我们自己写的：他们是 `余页/` 目录 + `memory_fs` 工具 + 64 MB 子配额 + 思源镜像；
 > 我们是一个 `cyrene-page.md` + `write_page`/`read_page` + 64 KB。
-> 出处与授权说明见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+> 改名不表示抹掉出处 —— 详细说明见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
 ### 称呼是动态的
 
