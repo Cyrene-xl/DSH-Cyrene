@@ -236,6 +236,32 @@ test('匹配：超过上限会被截断并记 diagnostics', () => {
   assert.equal(diagnostics[0].code, 'capped');
 });
 
+test('匹配：字符预算按优先级截断（条数之外的第二道闸）', () => {
+  // 8 条长条目能让条数上限通过、但体积爆掉 —— 预算就是防这个的。
+  const mk = (i) => ({
+    id: `b#${i}`, title: `长条目${i}`, triggers: ['关键词'], linkTriggers: [],
+    constant: false, priority: 200 - i, content: '正'.repeat(400), source: 'b.md', line: 1
+  });
+  const many = Array.from({ length: 8 }, (_, i) => mk(i));
+  const corpus = buildCorpus({ userText: '关键词' });
+
+  const noBudget = matchWorldbook(many, corpus, { maxActive: 8, maxChars: 0 });
+  assert.equal(noBudget.primary.length, 8, 'maxChars=0 表示不限体积')
+
+  const budgeted = matchWorldbook(many, corpus, { maxActive: 8, maxChars: 1000 });
+  const used = budgeted.primary.reduce((n, h) => n + h.entry.content.length + 2, 0);
+  assert.ok(used <= 1000, `注入体积应受预算约束，实际 ${used}`);
+  assert.ok(budgeted.primary.length < 8, '应当丢掉超出预算的条目');
+  assert.ok(
+    budgeted.primary.every((h) => h.entry.priority >= 193),
+    '留下的必须是优先级更高的那几条',
+  );
+  assert.ok(
+    budgeted.diagnostics.some((d) => d.code === 'budget'),
+    '被预算丢掉的条目要记进诊断',
+  );
+});
+
 test('匹配：scanDepth=1 只看 D0', () => {
   const corpus = buildCorpus({ userText: '今天天气不错', previousTexts: ['迷迷'] });
   assert.equal(matchWorldbook(ENTRIES, corpus, { scanDepth: 1 }).primary.length, 0);

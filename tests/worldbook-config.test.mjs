@@ -66,6 +66,7 @@ test('配置归一化：类型不对退回默认，数值夹到区间', () => {
   assert.equal(d.maxActive, 8)
   assert.equal(d.trace, false)
   assert.equal(d.knowledgeBoundary, 'allow-general', '默认允许通用知识')
+  assert.equal(d.maxChars, 1600, '默认字符预算 1600')
   assert.equal(d.dir.includes('worldbook'), true, '默认 dir 应指向随包数据')
 
   const bad = normalizeConfig({ enabled: 'false', scanDepth: 'abc', maxActive: null, trace: 'yes', dir: '   ' })
@@ -75,6 +76,8 @@ test('配置归一化：类型不对退回默认，数值夹到区间', () => {
   assert.equal(bad.trace, false, '只有显式 true 才算开')
   assert.equal(bad.dir, d.dir, '空白 dir 退回默认')
 
+  assert.equal(normalizeConfig({ maxChars: 10 }).maxChars, 200, 'maxChars 下限 200')
+  assert.equal(normalizeConfig({ maxChars: 99999 }).maxChars, 8000, 'maxChars 上限 8000')
   const clamped = normalizeConfig({ maxActive: 999, scanDepth: 0 })
   assert.equal(clamped.maxActive, 50, 'maxActive 上限 50')
   assert.equal(clamped.scanDepth, 1, 'scanDepth 下限 1')

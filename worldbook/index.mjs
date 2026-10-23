@@ -49,7 +49,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadWorldbookDirectory, worldbookDirectorySignature } from './parse.mjs';
-import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE } from './match.mjs';
+import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE, DEFAULT_MAX_CHARS } from './match.mjs';
 import { assembleWorldbook } from './assemble.mjs';
 
 /** 跟其它 dsha-* 插件一样认 DSH_HOME。 */
@@ -72,6 +72,8 @@ const DEFAULTS = Object.freeze({
   enabled: true,
   dir: BUNDLED_DIR,
   maxActive: DEFAULT_MAX_ACTIVE,
+  /** 单轮命中块的字符预算（条数之外的第二道闸）。 */
+  maxChars: DEFAULT_MAX_CHARS,
   /** 扫最近几条用户消息（D0 来自本轮，D1/D2 来自前几轮）。 */
   scanDepth: 3,
   /** 诊断日志开关。默认关；排障时在 <DSH_HOME>/cyrene-worldbook.json 里打开。 */
@@ -126,6 +128,7 @@ export function normalizeConfig(raw) {
     enabled: src.enabled !== false,
     dir: typeof src.dir === 'string' && src.dir.trim() !== '' ? src.dir : DEFAULTS.dir,
     maxActive: int(src.maxActive, DEFAULTS.maxActive, 1, 50),
+    maxChars: int(src.maxChars, DEFAULTS.maxChars, 200, 8000),
     scanDepth: int(src.scanDepth, DEFAULTS.scanDepth, 1, 5),
     trace: src.trace === true,
     knowledgeBoundary: src.knowledgeBoundary === 'context-only' ? 'context-only' : 'allow-general',
@@ -352,7 +355,7 @@ export function apply(ctx) {
       const matched = matchWorldbook(
         list,
         buildCorpus({ userText, previousTexts }),
-        { maxActive: config.maxActive, scanDepth: depth }
+        { maxActive: config.maxActive, scanDepth: depth, maxChars: config.maxChars }
       );
       const built = assembleWorldbook(
         { permanent: [], primary: matched.primary, chained: matched.chained },

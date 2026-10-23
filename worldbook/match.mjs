@@ -23,6 +23,14 @@
 export const DEFAULT_MAX_ACTIVE = 8;
 
 /**
+ * 注入字符预算的默认值。
+ *
+ * 上游的 MAX_ACTIVE 只限制**条数**，不限制体积；一条 800 字的条目×8 也能一次塞 6000+ 字。
+ * 这里补一道体积闸：按优先级降序累加，超了就丢（与 SillyTavern 的 order + 预算截断同义）。
+ */
+export const DEFAULT_MAX_CHARS = 1600;
+
+/**
  * 归一化用于匹配的文本。
  * @param text - 原始文本。
  * @param caseSensitive - 是否区分大小写。
@@ -158,5 +166,37 @@ export function matchWorldbook(entries, corpus, options = {}) {
     chained.sort((a, b) => byPriority(a.entry, b.entry));
   }
 
-  return { permanent, primary: kept, chained, diagnostics };
+  // ── 字符预算：条数上限之外再按体积截断 ──────────────────────────────
+  //
+  // 条数达标不代表体积达标：8 条长条目能一次吃掉几千字。这里把 primary 与 chained
+  // 合起来按优先级降序累加，超预算的丢掉并记进诊断 —— 与 SillyTavern 的
+  // 「order 降序 + budget 截断」同一套语义。
+  const maxChars = Number.isFinite(options.maxChars) ? Math.max(0, Math.round(options.maxChars)) : DEFAULT_MAX_CHARS;
+  let primaryFinal = kept;
+  let chainedFinal = chained;
+  if (maxChars > 0) {
+    const SEP = 2; // 条目之间大约两个换行的开销
+    const merged = [...kept, ...chained].sort((a, b) => byPriority(a.entry, b.entry));
+    const allowed = new Set();
+    let used = 0;
+    for (const hit of merged) {
+      const size = String(hit.entry.content ?? '').length + SEP;
+      if (used + size > maxChars) {
+        diagnostics.push({
+          code: 'budget',
+          id: hit.entry.id,
+          title: hit.entry.title,
+          priority: hit.entry.priority,
+          chars: size
+        });
+        continue;
+      }
+      used += size;
+      allowed.add(hit.entry.id);
+    }
+    primaryFinal = kept.filter((hit) => allowed.has(hit.entry.id));
+    chainedFinal = chained.filter((hit) => allowed.has(hit.entry.id));
+  }
+
+  return { permanent, primary: primaryFinal, chained: chainedFinal, diagnostics };
 }
