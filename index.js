@@ -11,6 +11,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { SCENE_STORE, readState, writeState } from './scene.js';
+
 /** 插件 id（与 package.json 的 dsh.id、cordis.patch.yml 的条目 id 保持一致）。 */
 export const name = 'dsh-cyrene';
 
@@ -46,9 +48,97 @@ export const inject = [];
  * 本文件不做任何文件写入、不注册工具、不改动系统提示词——
  * 预设的生效完全由 DSH 自身对 ~/.dsh/.agent-presets/ 的发现机制负责。
  */
+/** 设置界面用的接口路径。 */
+export const SCENE_API_PATH = '/cyrene-scene-api';
+
+/**
+ * 写 JSON 响应。
+ * @param res - 响应对象。
+ * @param obj - 要序列化的对象。
+ * @param status - HTTP 状态码。
+ */
+function json(res, obj, status = 200) {
+  const body = JSON.stringify(obj);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store'
+  });
+  res.end(body);
+}
+
+/**
+ * 读请求体（设置界面只发很小的 JSON）。
+ * @param req - 请求对象。
+ * @returns 请求体文本。
+ */
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+/**
+ * `/cyrene-scene-api` 的处理器：读 / 改「角色扮演模式」开关。
+ *
+ * 浏览器半边（client.js）碰不到主机文件系统，所以开关的读写走这个接口；
+ * 真正存盘的是 scene.js 的 `writeState`，两边读的是同一个 `<DSH_HOME>/cyrene-scene.json`。
+ * 导出是为了单测（不经过 webServer）。
+ * @param req - 请求对象。
+ * @param res - 响应对象。
+ */
+export async function handleSceneApi(req, res) {
+  try {
+    if (req.method === 'GET') {
+      json(res, { ok: true, enabled: readState().enabled, path: SCENE_STORE });
+      return;
+    }
+    if (req.method !== 'POST') {
+      json(res, { ok: false, error: '只支持 GET / POST' }, 405);
+      return;
+    }
+    const raw = await readBody(req);
+    let payload = {};
+    try {
+      payload = raw ? JSON.parse(raw) : {};
+    } catch {
+      json(res, { ok: false, error: '请求体不是 JSON' }, 400);
+      return;
+    }
+    // 只接受真正的布尔值：设置界面传 "false" 这种字符串是 bug，不该被静默当成开。
+    if (typeof payload.enabled !== 'boolean') {
+      json(res, { ok: false, error: 'enabled 必须是 true / false' }, 400);
+      return;
+    }
+    if (!writeState({ enabled: payload.enabled })) {
+      json(res, { ok: false, error: `写入 ${SCENE_STORE} 失败` }, 500);
+      return;
+    }
+    json(res, { ok: true, enabled: payload.enabled });
+  } catch (error) {
+    json(res, { ok: false, error: String(error?.message ?? error) }, 400);
+  }
+}
+
+/**
+ * 插件加载钩子。
+ *
+ * 两件事：记一行日志（方便确认 loader 读到了），以及在没有 webServer 的部署里
+ * 静默跳过——设置界面靠这个接口，但缺了它不影响预设本身能跑。
+ * @param ctx - 插件上下文。
+ */
 export function apply(ctx) {
   ctx?.logger?.info?.(
     '[dsh-cyrene] 已加载。若尚未安装预设，请运行 scripts/install.sh（或 install.ps1 / install.bat）：' +
       'DSH 没有公开的预设安装 API，预设必须落到 ~/.dsh/.agent-presets/chat/ 才会被发现。'
   );
+
+  ctx.inject(['webServer'], (scope) => {
+    scope.effect(
+      () => scope.webServer.register({ kind: 'exact', path: SCENE_API_PATH, handler: handleSceneApi }),
+      'dsh-cyrene: /cyrene-scene-api'
+    );
+  });
 }

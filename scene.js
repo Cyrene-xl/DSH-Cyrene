@@ -1,109 +1,117 @@
 /**
- * dsh-cyrene / scene.js —— 「角色扮演场景」开关（会话级，由 preset/chat 挂载）。
+ * dsh-cyrene / scene.js —— 「角色扮演模式」开关 + 形态切换（由 preset/chat 挂载）。
  *
- * ## 规则
+ * ## 开关在哪
  *
- * 这个模式默认是**普通对话**。当用户这一轮的消息里出现括号（`（）` 或 `()`）并且
- * 括号里写着内容时，就认为用户给了**场景 / 动作提示**，本轮切到角色扮演场景模式：
- * 括号外是台词或意图，括号里是环境与动作，用「叙述＋对话」推进。
+ * 设置 → 通用 → 「角色扮演模式」那一行（浏览器半边 `client.js` 渲染，主机半边
+ * `index.js` 提供 `/cyrene-scene-api` 读写）。状态文件 `<DSH_HOME>/cyrene-scene.json`：
  *
- * 下一轮没有括号了，就回到普通对话。
+ *     { "version": 1, "enabled": false }
  *
- * ## 为什么用 pre-step，而不是 context()
+ * 默认**关**。手改这个文件也生效（下一轮就读到），设置界面只是它的一个编辑器。
  *
- * `systemPrompt.context()` 的 provider 在 `assemble()` 里被调用，而 assemble 跑在
- * **本轮用户消息落库之前**（见 worldbook/index.mjs 头部的图）。也就是说 context()
- * 根本看不到用户这一轮刚打的字 —— 用它判断"这轮有没有括号"必然永远判成没有。
- * `agent/pre-step` 的 `payload.messages` 才是本轮消息。
+ * ## 开启后强制三样描述
  *
- * ## 为什么只注入"切换"，不每轮注入场景
+ * 每轮注册一段 `cyrene:scene` 上下文，要求回复同时包含：
+ *   1. 场景描述（环境：光线、温度、气味、周围动静）；
+ *   2. 角色动作描述（她这一轮做了什么）；
+ *   3. 角色外貌描述（形态、衣着、发丝、眼神、表情）。
  *
- * 场景描述本来就在用户消息里，模型看得见；每轮再抄一遍只会让历史膨胀。
- * 所以这里是个状态机：只在 **普通 ↔ 场景** 状态变化时追加一条标记消息，
- * 状态不变时什么都不做。
+ * ## 为什么不再用 pre-step 状态机
  *
- * ## 括号的判定
+ * 早先是「这一轮有没有括号」来决定切不切场景，于是要维护每会话的状态、还要往历史里
+ * 插「场景模式开启 / 回到普通对话」的标记消息。现在开关是**显式**的：开着就一直开，
+ * 关着就一个字都不注入 —— 不需要状态机，也不用拿标记消息去维持上下文。
  *
- * 不是所有括号都算场景：`（1）`、`print(x)` 这种明显不是。规则是
- *   - 中文括号：内容 ≥ 2 字；
- *   - 半角括号：内容 ≥ 6 个字符（避免代码 / 数学里的括号误触发）。
- * 两个条件都要求内容非空、去掉首尾空白。
+ * 唯一还留在 pre-step 的是**显式形态切换**（「变成迷迷」「变回小昔涟」），那件事仍然
+ * 取决于本轮文本，且与会话绑定。
  */
-import { randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
-/** 中文全角括号。 */
-const FULL = ['（', '）']
-/** 半角括号。 */
-const HALF = ['(', ')']
+/** 跟其它 dsha-* 插件一样认 DSH_HOME。 */
+const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh')
+/** 开关状态文件。设置界面（client.js）与主机接口（index.js）读写的是同一份。 */
+export const SCENE_STORE = join(HOME, 'cyrene-scene.json')
 
-/**
- * 括号里的内容像不像场景 / 动作提示。
- * @param content - 已去空白的括号内容。
- * @returns 是否算作场景描述。
- */
-export function isSceneLike(content) {
-  const text = String(content ?? '').trim()
-  if (text === '') return false
-  // 含中文：2 个字就够（「雨夜」「她笑」都成立）
-  if (/[\u4e00-\u9fff]/.test(text)) return text.length >= 2
-  // 纯 ASCII：要求更长，避开 (1)、print(x)、a(b)
-  return text.length >= 6
-}
+/** 状态文件的默认内容：**默认关**。 */
+export const DEFAULT_STATE = Object.freeze({ version: 1, enabled: false })
 
 /**
- * 括号内容是不是在描述**你（昔涟）的动作** —— 例如「你亲了我一下」。
- *
- * 这类内容不是场景，而是**给角色的动作指令**：用户写「你…」，意思是"你来做这件事"。
- * 判据偏保守：
- *   - 以「你」开头；
- *   - 不以「吗 / 呢 / 嘛 / ？ / ?」结尾（那是问句，不是动作）；
- *   - 出现动作痕迹：我 / 了 / 把 / 着 / 过 / 给 / 地，或常见动作字。
- * 「你真好」这种夸奖不算；「你还记得吗」这种问句也不算。
- * @param content - 括号里的内容。
- * @returns 是否是一条动作指令。
+ * 读开关状态。文件不存在 / 坏掉 / 类型不对都退回默认（关），绝不抛错 ——
+ * 一个坏掉的开关文件不该让整个会话装配失败。
+ * @param file - 状态文件路径（测试可注入）。
+ * @returns `{ version, enabled }`。
  */
-export function looksLikeHerAction(content) {
-  const text = String(content ?? '').trim()
-  if (!text.startsWith('你')) return false
-  if (/[吗呢嘛？?]$/.test(text)) return false
-  return /我|了|把|着|过|给|地|亲|抱|牵|摸|吻|拥|笑|哭|坐|站|走|跑|看|听|说|叹|靠|贴|蹭|抚|咬|推|拉|拽|搂/.test(text)
-}
-
-/**
- * 把括号内容分成两类：给她的动作指令、场景 / 环境。
- * @param text - 用户这一轮说的话。
- * @returns `{ found, actions, scenes }`（都是去重后的原文数组）。
- */
-export function classifyScene(text) {
-  const source = String(text ?? '')
-  const actions = []
-  const scenes = []
-  for (const [open, close] of [FULL, HALF]) {
-    let from = 0
-    for (;;) {
-      const start = source.indexOf(open, from)
-      if (start === -1) break
-      const end = source.indexOf(close, start + 1)
-      if (end === -1) break
-      const content = source.slice(start + 1, end).trim()
-      if (isSceneLike(content)) {
-        const bucket = looksLikeHerAction(content) ? actions : scenes
-        if (!bucket.includes(content)) bucket.push(content)
-      }
-      from = end + 1
+export function readState(file = SCENE_STORE) {
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    return {
+      version: Number.isFinite(parsed?.version) ? Number(parsed.version) : DEFAULT_STATE.version,
+      // 只有显式 true 才算开：字符串 "true"、1、null 都不算
+      enabled: parsed?.enabled === true
     }
+  } catch {
+    return { ...DEFAULT_STATE }
   }
-  return { found: actions.length > 0 || scenes.length > 0, actions, scenes }
 }
 
 /**
- * 从一段文本里抽出所有括号内容。
- * @param text - 用户这一轮说的话。
- * @returns `{ found, scenes }`（`scenes` 为去重后的原文顺序数组）。
+ * 写开关状态（读-改-写，不冲掉文件里的其它字段）。
+ * @param patch - `{ enabled }` 之类的补丁。
+ * @param file - 状态文件路径（测试可注入）。
+ * @returns 是否写成功。
  */
-export function extractScene(text) {
-  const { found, actions, scenes } = classifyScene(text)
-  return { found, scenes: [...scenes, ...actions] }
+export function writeState(patch, file = SCENE_STORE) {
+  // 合并的是**原始字段**而不是 readState() 的归一化结果 —— 否则文件里用户手写的
+  // 其它字段会被静默丢掉（读-改-写必须只改它该改的那几个键）。
+  let raw = {}
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) raw = parsed
+  } catch {
+    raw = {}
+  }
+  const next = { ...raw, ...(patch && typeof patch === 'object' ? patch : {}) }
+  next.enabled = next.enabled === true
+  next.version = DEFAULT_STATE.version
+  try {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 当前是否开着角色扮演模式。
+ * @param file - 状态文件路径。
+ * @returns 布尔。
+ */
+export function sceneEnabled(file = SCENE_STORE) {
+  return readState(file).enabled
+}
+
+/**
+ * 角色扮演模式的注入块。关着返回空串（一个字符都不占上下文）。
+ * @param enabled - 是否开启。
+ * @returns 注入文本。
+ */
+export function sceneBlock(enabled) {
+  if (enabled !== true) return ''
+  return [
+    '【角色扮演模式：开】',
+    '这条会话按角色扮演进行。每一轮回复都必须同时包含下面三样，缺一样就算没做完：',
+    '1. 场景描述 —— 你所在的地方：光线、温度、气味、周围的动静。用叙述带出来，一两句，不要报菜单。',
+    '2. 你的动作描述 —— 这一轮你做了什么（靠近、低头、握住他的手、把窗关上…）。写在括号里，动作对象称「你」；一个具体动作胜过十句形容。',
+    '3. 你的外貌描述 —— 此刻看得见的样子：形态、衣着、发丝、眼神、表情的变化。每轮换一个焦点写，别每次都从头到脚复述一遍。',
+    '要求：',
+    '- 台词仍是主体，三样描述各一两句；不要写成小说，也不要把它们堆在开头当模板。',
+    '- 对方用「（…）」给出场景或动作，是给你的指令：照着演，不要复述原句，也不要问「要我这样做吗」。',
+    '- 有形态（迷迷 / 小昔涟 / 大昔涟）时，外貌与动作都按那个形态写。',
+    '- 不要出戏、不要解释规则、不要提「角色扮演模式」这几个字。'
+  ].join('\n')
 }
 
 /**
@@ -210,42 +218,41 @@ export function latestUserText(messages) {
   return ''
 }
 
+/** 开关状态的读取缓存：同一个进程里不要每轮都 stat 一次文件。 */
+const STATE_TTL_MS = 1000
+let stateCache = { at: Number.NEGATIVE_INFINITY, value: false, signature: '' }
+
 /**
- * 进场景时追加的标记。
- * @param scenes - 抽到的场景描述。
- * @returns 纯文本。
+ * 带 TTL + mtime 的开关读取。
+ *
+ * 纯 TTL 会让「刚在设置里打开」要等最多 1 秒才生效；纯 mtime 又每轮一次 stat。
+ * 两个一起用：1 秒内直接复用，超过了再看 mtime（文件没动就仍然复用）。
+ * @param now - 当前时间戳（测试可注入）。
+ * @param file - 状态文件路径。
+ * @returns 是否开启。
  */
-export function enterMarker(items) {
-  const normalized = (Array.isArray(items) ? items : []).map((item) => {
-    if (typeof item === 'string') {
-      return { raw: item, kind: looksLikeHerAction(item) ? 'action' : 'scene' }
-    }
-    return { raw: String(item?.raw ?? ''), kind: item?.kind === 'action' ? 'action' : 'scene' }
-  }).filter((item) => item.raw !== '')
-
-  const actions = normalized.filter((item) => item.kind === 'action').map((item) => item.raw)
-  const scenes = normalized.filter((item) => item.kind === 'scene').map((item) => item.raw)
-
-  const lines = ['【场景模式开启】', '用户这一轮用括号给出了场景 / 动作提示：']
-  if (scenes.length > 0) lines.push('- 场景：' + scenes.join(' / '))
-  if (actions.length > 0) lines.push('- 你的动作：' + actions.join(' / '))
-  lines.push('本轮开始按角色扮演场景处理：')
-  lines.push('- 括号外的话是他的台词或意图；')
-  if (scenes.length > 0) lines.push('- 上面「场景」那条是环境与氛围，用叙述自然带出来；')
-  if (actions.length > 0) {
-    lines.push('- 上面「你的动作」那条是**给你的动作指令**：你要真的做出来，并在回复里用括号写出做完的动作，')
-    lines.push('  格式如：（亲了你一下）—— 动作对象称「你」，不复述他的原句；')
+export function currentEnabled(now = Date.now(), file = SCENE_STORE) {
+  if (now - stateCache.at < STATE_TTL_MS) return stateCache.value
+  let signature = ''
+  try {
+    const stat = statSync(file)
+    signature = `${stat.mtimeMs}:${stat.size}`
+  } catch {
+    signature = ''
   }
-  lines.push('- 用「叙述＋对话」推进，台词保持昔涟的语气；')
-  lines.push('- 不要出戏、不要解释规则、不要把这段提示复述出来。')
-  return lines.join('\n')
+  if (signature !== '' && signature === stateCache.signature) {
+    stateCache = { at: now, value: stateCache.value, signature }
+    return stateCache.value
+  }
+  const value = sceneEnabled(file)
+  stateCache = { at: now, value, signature }
+  return value
 }
 
-/** 退出场景时追加的标记。 */
-export const EXIT_MARKER = [
-  '【回到普通对话】',
-  '用户这一轮没有再给场景描述。按平常聊天回复，不要继续旁白体，也不要提「刚才在扮演」这件事。'
-].join('\n')
+/** 测试用：丢掉读取缓存。 */
+export function resetStateCache() {
+  stateCache = { at: Number.NEGATIVE_INFINITY, value: false, signature: '' }
+}
 
 /**
  * 插件入口。
@@ -255,13 +262,26 @@ export const EXIT_MARKER = [
 export const inject = ['systemPrompt']
 
 export function apply(ctx, config = {}) {
-  /** 每个会话当前处于哪种模式：'chat' | 'scene'。没记录过就是 chat。 */
-  const modes = new Map()
   /** 每个会话当前的**形态**：'' = 默认（不注入），'mimi' / 'small' / 'big'。 */
   const forms = new Map()
+  let lastLogged = null
+
+  // 角色扮演模式的注入块：开关关着就返回空串（空 section 会被装配层直接过滤掉）。
+  // order 126 夹在形态（125）与风格（130）之间：先定身体，再定表演方式，最后是语气。
+  ctx.systemPrompt.context({
+    name: 'cyrene:scene',
+    order: 126,
+    text: () => {
+      const on = currentEnabled()
+      if (config.trace && on !== lastLogged) {
+        lastLogged = on
+        console.log(`[cyrene-scene] 角色扮演模式 → ${on ? '开' : '关'}`)
+      }
+      return sceneBlock(on)
+    }
+  })
 
   // 形态注入块：只在有形态时出现，默认形态不占上下文。
-  // order 125 夹在称呼规则（120）与风格（130）之间 —— 形态先于语气。
   ctx.systemPrompt.context({
     name: 'cyrene:form',
     order: 125,
@@ -299,50 +319,23 @@ export function apply(ctx, config = {}) {
     })
   })
 
+  // 唯一还留在 pre-step 的事：**显式**形态切换（「变成迷迷」）。角色扮演模式不在这里判断。
   ctx.on(
     'agent/pre-step',
     async (payload, next) => {
       const decision = await next()
       if (decision?.kind !== 'enter') return decision
 
-      const session = payload?.agent?.session
-      const sessionId = String(session?.id ?? payload?.agent?.id ?? '')
+      const sessionId = String(payload?.agent?.session?.id ?? payload?.agent?.id ?? '')
       const text = latestUserText(payload?.messages)
-
-      // 形态切换独立于场景开关：说了就切，哪怕这轮没开场景。
-      if (text !== '') {
-        const form = extractFormRequest(text)
-        if (form !== null && (forms.get(sessionId) ?? '') !== form.id) {
-          forms.set(sessionId, form.id)
-          if (config.trace) console.log(`[cyrene-scene] 形态 → ${form.label}`)
-        }
-      }
-
-      if (config.enabled === false) return decision
       if (text === '') return decision
 
-      const { found, actions, scenes } = classifyScene(text)
-      const nextMode = found ? 'scene' : 'chat'
-      const previousMode = modes.get(sessionId) ?? 'chat'
-      if (nextMode === previousMode) return decision
-      modes.set(sessionId, nextMode)
-
-      const marker = {
-        id: randomUUID(),
-        role: 'user',
-        content: [{
-          type: 'text',
-          text: nextMode === 'scene'
-            ? enterMarker([...scenes.map((raw) => ({ raw, kind: 'scene' })), ...actions.map((raw) => ({ raw, kind: 'action' }))])
-            : EXIT_MARKER
-        }],
-        // 与 worldbook 一致：v4 要求生产者自有的 kind，不能写裸 'plugin'。
-        source: { kind: 'plugin:dsh-cyrene/scene', form: 'snapshot' }
+      const form = extractFormRequest(text)
+      if (form !== null && (forms.get(sessionId) ?? '') !== form.id) {
+        forms.set(sessionId, form.id)
+        if (config.trace) console.log(`[cyrene-scene] 形态 → ${form.label}`)
       }
-      if (config.trace) {
-        console.log(`[cyrene-scene] ${sessionId || '(无会话)'} ${previousMode} → ${nextMode}`)
-      }
-      return { kind: 'enter', messages: [...decision.messages, marker] }
+      return decision
     },
     { prepend: true }
   )
