@@ -434,8 +434,16 @@ async function runPreStep(listeners, messages, session) {
 test('注入层：常驻块走 context()，顺序稳定', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, () => {
   const { ctx, registered } = mockCtx();
   applyWorldbook(ctx);
-  assert.deepEqual(registered.map((c) => c.name), ['cyrene:worldbook-static']);
-  assert.ok(Number.isFinite(registered[0].order));
+  assert.deepEqual(
+    registered.map((c) => c.name),
+    ['cyrene:worldbook-static', 'cyrene:knowledge-boundary'],
+    '常驻块与知识边界都走 context()，顺序固定',
+  );
+  assert.ok(registered.every((c) => Number.isFinite(c.order)));
+  assert.ok(
+    registered[1].order > registered[0].order,
+    '知识边界必须排在常驻块之后 —— 先给事实，再给"别越界"的规则',
+  );
 });
 
 test('注入层：必须注册 agent/pre-step —— 命中块拿不到本轮消息就完全失效', { skip: !existsSync(REAL_DIR) && '真实世界书目录不存在' }, () => {

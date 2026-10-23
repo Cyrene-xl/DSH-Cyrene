@@ -65,6 +65,7 @@ test('配置归一化：类型不对退回默认，数值夹到区间', () => {
   assert.equal(d.scanDepth, 3)
   assert.equal(d.maxActive, 8)
   assert.equal(d.trace, false)
+  assert.equal(d.knowledgeBoundary, 'allow-general', '默认允许通用知识')
   assert.equal(d.dir.includes('worldbook'), true, '默认 dir 应指向随包数据')
 
   const bad = normalizeConfig({ enabled: 'false', scanDepth: 'abc', maxActive: null, trace: 'yes', dir: '   ' })
@@ -84,6 +85,8 @@ test('配置归一化：类型不对退回默认，数值夹到区间', () => {
     { enabled: false, scanDepth: 5, maxActive: 3, trace: true, dir: '/tmp/x' },
   )
 
+  assert.equal(normalizeConfig({ knowledgeBoundary: 'context-only' }).knowledgeBoundary, 'context-only')
+  assert.equal(normalizeConfig({ knowledgeBoundary: '乱写' }).knowledgeBoundary, 'allow-general', '非法值退回默认')
   assert.equal(normalizeConfig([]).enabled, true, '数组当垃圾处理')
   assert.equal(normalizeConfig('nonsense').scanDepth, 3)
 })
@@ -127,8 +130,8 @@ test('注入层：改了世界书文件，下一轮立即生效（不用等 TTL�
 
   const { ctx, contexts } = mockCtx()
   apply(ctx)
-  assert.equal(contexts.length, 1, '必须注册常驻块的 context')
-  const spec = contexts[0]
+  const spec = contexts.find((c) => c.name === 'cyrene:worldbook-static')
+  assert.ok(spec, '必须注册常驻块的 context')
 
   const before = spec.text()
   assert.ok(before.includes('这是第一版的正文'), '第一版应注入')
@@ -147,7 +150,7 @@ test('注入层：配置改成 enabled:false 后停止注入（2 秒后）', () 
 
   const { ctx, contexts } = mockCtx()
   apply(ctx)
-  const spec = contexts[0]
+  const spec = contexts.find((c) => c.name === 'cyrene:worldbook-static')
   assert.ok(spec.text().includes('一些正文'))
 
   // 真实时间无法注入到 provider 里，所以这里直接推模块缓存的时间窗口：
@@ -155,6 +158,30 @@ test('注入层：配置改成 enabled:false 后停止注入（2 秒后）', () 
   writeConfig({ dir, enabled: false })
   forceReload()
   assert.equal(spec.text(), '', '关掉后常驻块应为空串')
+})
+
+test('知识边界：默认不注入，只有 context-only 才注入规则', () => {
+  const dir = join(HOME, 'book-boundary')
+  makeBook(dir, '一些正文。')
+
+  writeConfig({ dir, knowledgeBoundary: 'allow-general' })
+  forceReload()
+  const lax = mockCtx()
+  apply(lax.ctx)
+  const laxSpec = lax.contexts.find((c) => c.name === 'cyrene:knowledge-boundary')
+  assert.ok(laxSpec, '不论哪一档都要注册，只是文本可能为空')
+  assert.equal(laxSpec.order, 145, '排在常驻世界书 140 之后')
+  assert.equal(laxSpec.text(), '', '默认档不占上下文')
+
+  writeConfig({ dir, knowledgeBoundary: 'context-only' })
+  forceReload()
+  const strict = mockCtx()
+  apply(strict.ctx)
+  const strictSpec = strict.contexts.find((c) => c.name === 'cyrene:knowledge-boundary')
+  const text = strictSpec.text()
+  assert.ok(text.includes('【知识边界：只谈上下文】'))
+  assert.ok(text.includes('不要用你训练数据里的设定补全'))
+  assert.ok(text.includes('宁可少说'), '要给"不知道"一个体面的说法')
 })
 
 test('清理临时目录', () => {

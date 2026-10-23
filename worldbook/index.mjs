@@ -75,7 +75,14 @@ const DEFAULTS = Object.freeze({
   /** 扫最近几条用户消息（D0 来自本轮，D1/D2 来自前几轮）。 */
   scanDepth: 3,
   /** 诊断日志开关。默认关；排障时在 <DSH_HOME>/cyrene-worldbook.json 里打开。 */
-  trace: false
+  trace: false,
+  /**
+   * 知识边界：`allow-general`（默认，允许用模型通用知识）或 `context-only`
+   * （只谈本轮上下文 / 世界书 / 记忆里有的东西）。
+   *
+   * 为什么放在世界书配置里：这条规则约束的正是"世界书之外的角色与剧情"。
+   */
+  knowledgeBoundary: 'allow-general'
 });
 
 /** 配置文件的重读间隔：改完最多 2 秒生效，不用重启。 */
@@ -121,6 +128,7 @@ export function normalizeConfig(raw) {
     maxActive: int(src.maxActive, DEFAULTS.maxActive, 1, 50),
     scanDepth: int(src.scanDepth, DEFAULTS.scanDepth, 1, 5),
     trace: src.trace === true,
+    knowledgeBoundary: src.knowledgeBoundary === 'context-only' ? 'context-only' : 'allow-general',
     assemble: src.assemble !== null && typeof src.assemble === 'object' ? { ...src.assemble } : undefined
   };
 }
@@ -137,6 +145,26 @@ export function currentConfig(now = Date.now()) {
   if (configCache.value !== null && now - configCache.at < CONFIG_RECHECK_MS) return configCache.value;
   configCache = { at: now, value: normalizeConfig(readConfigFile()) };
   return configCache.value;
+}
+
+/**
+ * 「只谈上下文」的规则文本。**只有开了 `context-only` 才注入** —— 默认模式不占上下文
+ * （人设里本来就有事实边界那几条）。
+ *
+ * 现实动机：模型自带的知识库会给世界书没收录的角色补设定，可能是旧版本、也可能与
+ * 我们发的那 61 条冲突。这一档把"不知道"变成一种明确的回答方式。
+ * @returns 注入文本。
+ */
+function knowledgeBoundaryText() {
+  return [
+    '【知识边界：只谈上下文】',
+    '本轮你只能把下面这些当作事实：当前对话、长期记忆、已激活的世界书条目。',
+    '- 世界书没收录的角色、地点与剧情：**不主动展开**；被问到时如实说不确定',
+    '  （「这一段我不太清楚」「故事之外的事，人家不敢乱说」），不要用你训练数据里的设定补全；',
+    '- 如果确实要用通用知识回答（比如被问「某某是谁」），先用一句话说明这是常识层面的信息，',
+    '  再明确「这不在我记得的故事里」，两者不要混成一段确定的事实；',
+    '- 宁可少说，也不要编一个听起来很像的细节。'
+  ].join('\n');
 }
 
 /** 追加一行诊断日志；整个吞掉异常。 */
@@ -351,6 +379,14 @@ export function apply(ctx) {
     // 排在策略类 context（110/115/120）之后，便于在快照里辨认。
     order: 140,
     text: () => staticText()
+  });
+
+  // ── 知识边界：严格模式下才注入（默认不留痕，省上下文）──
+  ctx.systemPrompt.context({
+    name: 'cyrene:knowledge-boundary',
+    // 排在常驻世界书（140）之后：先给事实，再给"别越界"的规则。
+    order: 145,
+    text: () => (currentConfig().knowledgeBoundary === 'context-only' ? knowledgeBoundaryText() : '')
   });
 
   // ── 命中块：必须走 agent/pre-step（本轮消息是它的参数，读会话拿不到）──
