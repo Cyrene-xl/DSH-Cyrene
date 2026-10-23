@@ -46,6 +46,12 @@ const FIELD_ALIASES = new Map([
   ['优先级', 'priority'],
   ['连带触发词', 'linkTriggers'],
   ['连带触发', 'linkTriggers'],
+  // ── 以下是**本项目扩展**，上游 Cyrene-Agent 的格式里没有：
+  // 「必同时命中」= 这一组关键词必须**全部**出现在语料里才算命中。
+  // 给长条目、泛用标题（神名、地名）用：单说一个「白厄」不该把整篇人物志拉进来。
+  ['必须同时命中', 'requireAll'],
+  ['必同时命中', 'requireAll'],
+  ['同时命中', 'requireAll']
 ]);
 
 /**
@@ -150,6 +156,7 @@ function parseBlock(block, source, index, startLine) {
     title,
     names,
     triggers: splitList(fields.triggers),
+    requireAll: splitList(fields.requireAll),
     linkTriggers: splitList(fields.linkTriggers),
     constant: toBool(fields.constant),
     intrinsicValue: toNumber(fields.intrinsicValue, 60),

@@ -31,6 +31,18 @@ export const DEFAULT_MAX_ACTIVE = 8;
 export const DEFAULT_MAX_CHARS = 1600;
 
 /**
+ * 单条注入正文的默认上限（字符）。
+ *
+ * 世界书里的人物志动辄 600–900 字，一条就能吃掉半个预算。这里把**注入用**的正文
+ * 截到一句/一段的边界，文件本身不动（数据仍是无损的，`read_page`/审计看到的是全文）。
+ * 设为 0 关闭截断 —— 想要上游原文就把它关掉。
+ */
+export const DEFAULT_MAX_ENTRY_CHARS = 320;
+
+/** 截断时至少保留到上限的这个比例，避免在很靠前的句号处就断掉。 */
+const MIN_KEEP_RATIO = 0.5;
+
+/**
  * 归一化用于匹配的文本。
  * @param text - 原始文本。
  * @param caseSensitive - 是否区分大小写。
@@ -89,6 +101,51 @@ function scanTriggers(entry, parts, caseSensitive) {
 }
 
 /**
+ * 判断某个关键词是否出现在语料里的任一分片。
+ * @param key - 关键词。
+ * @param parts - 语料分片。
+ * @param caseSensitive - 是否区分大小写。
+ * @returns 是否出现。
+ */
+function hasKey(key, parts, caseSensitive) {
+  const needle = norm(key, caseSensitive);
+  if (needle === '') return false;
+  return parts.some((part) => norm(part.text, caseSensitive).includes(needle));
+}
+
+/**
+ * 把注入用的正文截到句/段边界。
+ *
+ * 只在「句末标点或换行」之后切，切点至少保留到上限的一半；找不到像样的切点就硬切。
+ * 截断处补 `…`，让人一眼看出还有下文（别让模型以为那就是全部）。
+ * 返回的是**新对象**：条目本体（含完整正文）保持原样，方便审计与排查。
+ *
+ * @param entry - 原条目。
+ * @param limit - 字符上限；<=0 表示不截。
+ * @returns `{ entry, clipped: boolean }`。
+ */
+function clipEntry(entry, limit) {
+  const text = String(entry.content ?? '');
+  if (limit <= 0 || [...text].length <= limit) return { entry, clipped: false };
+  const chars = [...text];
+  // 预留一个字符给省略号 —— 不能让「截完加一个 …」把总长又顶出上限一格。
+  const head = chars.slice(0, Math.max(1, limit - 1));
+  const minKeep = Math.floor(limit * MIN_KEEP_RATIO);
+  let cut = -1;
+  for (let i = head.length - 1; i >= minKeep; i -= 1) {
+    if (/[。！？；\n]/.test(head[i])) {
+      cut = i;
+      break;
+    }
+  }
+  const kept = (cut === -1 ? head : head.slice(0, cut + 1)).join('').trimEnd();
+  return {
+    entry: { ...entry, content: `${kept}…`, clipped: true, fullChars: chars.length },
+    clipped: true
+  };
+}
+
+/**
  * 排序：优先级降序；同优先级按来源顺序（稳定，便于复现）。
  * @param a - 条目。
  * @param b - 条目。
@@ -136,7 +193,24 @@ export function matchWorldbook(entries, corpus, options = {}) {
     if ((entry.triggers ?? []).length === 0) continue; // 非常驻又无触发词：永不触发
     const { keys, slots: hitSlots } = scanTriggers(entry, parts, caseSensitive);
     if (keys.length === 0) continue;
-    keywordHits.push({ entry, reason: 'keyword', matchedKeys: keys, matchedSlots: hitSlots });
+    // 「必须同时命中」：门槛词缺一个就不算命中。只记「差一点」的诊断 ——
+    // 一个都没命中跟普通未命中没区别，记了只会把日志刷满。
+    const required = entry.requireAll ?? [];
+    if (required.length > 0) {
+      const missing = required.filter((key) => !hasKey(key, parts, caseSensitive));
+      if (missing.length > 0) {
+        diagnostics.push({
+          code: 'require-all',
+          id: entry.id,
+          title: entry.title,
+          matchedKeys: keys,
+          missingKeys: missing
+        });
+        continue;
+      }
+    }
+    const allKeys = [...keys, ...required.filter((key) => !keys.includes(key))];
+    keywordHits.push({ entry, reason: 'keyword', matchedKeys: allKeys, matchedSlots: hitSlots });
   }
 
   permanent.sort((a, b) => byPriority(a.entry, b.entry));
@@ -171,12 +245,33 @@ export function matchWorldbook(entries, corpus, options = {}) {
   // 条数达标不代表体积达标：8 条长条目能一次吃掉几千字。这里把 primary 与 chained
   // 合起来按优先级降序累加，超预算的丢掉并记进诊断 —— 与 SillyTavern 的
   // 「order 降序 + budget 截断」同一套语义。
+  // ── 单条截断：先按条截，再算预算 ────────────────────────────────────
+  // 顺序很关键：先截断，预算才按"实际会注入多少"来算；反过来的话一条 800 字的
+  // 条目会被当成 800 字去占预算，截完却只剩 320 字，白丢一条。
+  const entryMaxChars = Number.isFinite(options.entryMaxChars)
+    ? Math.max(0, Math.round(options.entryMaxChars))
+    : DEFAULT_MAX_ENTRY_CHARS;
+  const clip = (hits) => hits.map((hit) => {
+    const { entry, clipped } = clipEntry(hit.entry, entryMaxChars);
+    if (!clipped) return hit;
+    diagnostics.push({
+      code: 'clipped',
+      id: entry.id,
+      title: entry.title,
+      chars: [...String(entry.content)].length,
+      fullChars: entry.fullChars
+    });
+    return { ...hit, entry, reason: hit.reason };
+  });
+  kept = clip(kept);
+  const chainedClipped = clip(chained);
+
   const maxChars = Number.isFinite(options.maxChars) ? Math.max(0, Math.round(options.maxChars)) : DEFAULT_MAX_CHARS;
   let primaryFinal = kept;
-  let chainedFinal = chained;
+  let chainedFinal = chainedClipped;
   if (maxChars > 0) {
     const SEP = 2; // 条目之间大约两个换行的开销
-    const merged = [...kept, ...chained].sort((a, b) => byPriority(a.entry, b.entry));
+    const merged = [...kept, ...chainedClipped].sort((a, b) => byPriority(a.entry, b.entry));
     const allowed = new Set();
     let used = 0;
     for (const hit of merged) {
@@ -195,7 +290,7 @@ export function matchWorldbook(entries, corpus, options = {}) {
       allowed.add(hit.entry.id);
     }
     primaryFinal = kept.filter((hit) => allowed.has(hit.entry.id));
-    chainedFinal = chained.filter((hit) => allowed.has(hit.entry.id));
+    chainedFinal = chainedClipped.filter((hit) => allowed.has(hit.entry.id));
   }
 
   return { permanent, primary: primaryFinal, chained: chainedFinal, diagnostics };

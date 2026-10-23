@@ -223,6 +223,23 @@ Cyrene（昔涟）以及《崩坏：星穹铁道》相关的角色、世界观�
 `agent.cordis.yml` 的格式、`complete: true` 的语义、`systemPrompt.context()` 与
 `agent/pre-step` 这些扩展点，都是 DeepSeek Harness 提供的，非本项目发明。
 
+### 记忆的三层结构参考了谁
+
+「四问锚点 / 归档 / 余页」这套结构**不是本项目发明的**，思路来自两个社区项目
+（代码一行未抄，实现方式、存储格式、工具面都不同）：
+
+- [YOGEMOW/dsh-cyrene-eternal-page-remembrance](https://github.com/YOGEMOW/dsh-cyrene-eternal-page-remembrance)
+  —— 「一页永恒·记忆」：四问锚点、按 锚/日/月/年 分层归档、独立的"余页"纸页、
+  配额管理。本项目只借了**分层与余页这两个概念**：锚点固定四节、归档是文件里的一段
+  标记而不是目录树、余页是单个 md 文件（64 KB 上限），没有引入它的 11 个 `memory_*`
+  工具与夜间调度器。
+- [feverZHONG/liya-sillytavern-worldbook](https://github.com/feverZHONG/liya-sillytavern-worldbook)
+  —— SillyTavern 世界书写法的方法论。本项目借的是**判断口径**（首句自报家门、
+  只留事实、单条要短），不是它的具体数值；`scripts/worldbook-audit.mjs` 按这套口径
+  给自己打分（见第 1 节「世界书数据」与 README 的体检一节）。
+
+两份参考资料都没有被复制进本仓库，也不构成对本仓库的授权约束；它们的许可证归各自作者。
+
 ### 本项目自己写的部分
 
 `index.js`、`memory.js`、`nickname.js`、`worldbook/` 下的全部代码，以及 `scripts/`、

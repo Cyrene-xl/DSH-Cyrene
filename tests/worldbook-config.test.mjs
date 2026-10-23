@@ -78,6 +78,13 @@ test('配置归一化：类型不对退回默认，数值夹到区间', () => {
 
   assert.equal(normalizeConfig({ maxChars: 10 }).maxChars, 200, 'maxChars 下限 200')
   assert.equal(normalizeConfig({ maxChars: 99999 }).maxChars, 8000, 'maxChars 上限 8000')
+
+  // 单条截断：默认开（320），0 是合法值（= 关），不能像 null 那样被当成"没写"。
+  assert.equal(d.entryMaxChars, 320, '默认单条截断 320')
+  assert.equal(normalizeConfig({ entryMaxChars: 0 }).entryMaxChars, 0, '0 是合法值：关闭截断')
+  assert.equal(normalizeConfig({ entryMaxChars: null }).entryMaxChars, 320, 'null 退回默认')
+  assert.equal(normalizeConfig({ entryMaxChars: 99999 }).entryMaxChars, 4000, '上限 4000')
+  assert.equal(normalizeConfig({ entryMaxChars: -5 }).entryMaxChars, 0, '负数夹到 0')
   const clamped = normalizeConfig({ maxActive: 999, scanDepth: 0 })
   assert.equal(clamped.maxActive, 50, 'maxActive 上限 50')
   assert.equal(clamped.scanDepth, 1, 'scanDepth 下限 1')

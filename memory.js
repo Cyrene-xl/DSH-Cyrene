@@ -29,6 +29,23 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 const HOME = process.env.DSH_HOME || `${process.env.HOME || '.'}/.dsh`;
 /** 记忆本体。纯 markdown，一行一条 `- 内容`，也允许自由写小标题和说明。 */
 const STORE = `${HOME}/cyrene-memory.md`;
+/**
+ * 余页：她自己的纸页。**不注入、不检索**，只有她主动 `read_page` 时才看得到。
+ * 设计参考「一页永恒·记忆」的余页（见 THIRD_PARTY_NOTICES 的致谢）。
+ */
+const PAGE = `${HOME}/cyrene-page.md`;
+/** 余页大小上限（默认 64 KB；测试可用环境变量调小）。 */
+const PAGE_QUOTA_BYTES = Number(process.env.DSH_CYRENE_PAGE_QUOTA) || 64 * 1024;
+/** 余页单条的上限，避免一次写入塞进整篇。 */
+const MAX_PAGE_ENTRY_CHARS = 500;
+/**
+ * 四问锚点（从小到大的坐标）：整份记忆的第一页，注入时排在最前。
+ * 结构参考「一页永恒·记忆」的四问；含义由我们自己定：
+ *   我是谁 = 她的语气与边界；你是谁 = 对方；来处 = 前史；去处 = 正在往哪走。
+ */
+const ANCHORS = ['我是谁', '你是谁', '来处', '去处'];
+/** 归档标记：这一行之后的条目仍留在文件里，但**不再注入**（`forget` 才是真删）。 */
+const ARCHIVE_MARK = '## 归档（不注入）';
 /** 注入上限。记忆再长也不该吃掉对话空间，超了按行截断。 */
 const MAX_INJECT_CHARS = 2000;
 /** 单条记忆的长度上限。一条记忆超过这个长度基本是误写（多半是把整段话塞进来了）。 */
@@ -106,7 +123,11 @@ function countEntries(text) {
  * 注进去的是**外部来源可能污染过的内容**，所以按数据对待。
  */
 function injectText() {
-  const body = sanitize(readStore(), { keepNewlines: true });
+  const raw = readStore();
+  // 归档之后的内容仍保存在文件里，但不进上下文。
+  const cut = raw.indexOf(ARCHIVE_MARK);
+  const kept = cut === -1 ? raw : raw.slice(0, cut);
+  const body = sanitize(kept, { keepNewlines: true });
   if (body === '') return '';
   const clipped = body.length <= MAX_INJECT_CHARS
     ? body
@@ -158,12 +179,104 @@ function forget(keyword) {
 }
 
 /**
+ * 设置四问锚点里的某一节：替换该节正文，没有就补一节。
+ *
+ * 锚点是"整本记忆的第一页"，所以不管缺哪一节，最后都按 ANCHORS 的顺序
+ * 重新拼成一整块、放到文件最前面 —— 直接往最前面插会把顺序插反（你是谁 跑到 我是谁 前面）。
+ * @param section - 我是谁 / 你是谁 / 来处 / 去处。
+ * @param text - 这一节要写成什么（一段话，可多行）。
+ * @returns 结果文本。
+ */
+function setAnchor(section, text) {
+  const name = String(section ?? '').trim();
+  if (!ANCHORS.includes(name)) {
+    return `没有「${name}」这一节。可选：${ANCHORS.join(' / ')}。`;
+  }
+  const body = sanitize(text, { keepNewlines: true }).trim().slice(0, MAX_ENTRY_CHARS * 2);
+  if (body === '') return '内容为空，锚点没有改动。';
+
+  const lines = readStore().split('\n');
+  const bodies = new Map();
+  const rest = [];
+  let firstAt = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = /^## (.+?)\s*$/.exec(lines[i]);
+    if (match && ANCHORS.includes(match[1])) {
+      if (firstAt === -1) firstAt = rest.length;
+      let end = i + 1;
+      while (end < lines.length && !lines[end].startsWith('## ')) end += 1;
+      bodies.set(match[1], lines.slice(i + 1, end).join('\n').trim());
+      i = end - 1;
+      continue;
+    }
+    rest.push(lines[i]);
+  }
+  bodies.set(name, body);
+
+  const block = [];
+  for (const sectionName of ANCHORS) {
+    if (!bodies.has(sectionName)) continue;
+    block.push(`## ${sectionName}`, '', bodies.get(sectionName), '');
+  }
+
+  const at = firstAt === -1
+    ? rest.findIndex((line) => line.startsWith('## '))
+    : firstAt;
+  if (at === -1) rest.unshift(...block);
+  else rest.splice(at, 0, ...block);
+  writeStore(`${rest.join('\n').trim()}\n`);
+  return `锚点「${name}」已更新，下一轮生效。`;
+}
+
+/**
+ * 往余页写一条。**不会**进上下文，只有 read_page 才看得到。
+ * @param text - 想写的话。
+ * @returns 结果文本。
+ */
+function writePage(text) {
+  const clean = sanitize(text, { keepNewlines: true }).slice(0, MAX_PAGE_ENTRY_CHARS);
+  if (clean === '') return '内容为空，没有写。';
+  const current = existsSync(PAGE) ? readFileSync(PAGE, 'utf8') : '';
+  const stamp = new Date().toISOString().slice(0, 10);
+  const dayHead = `## ${stamp}`;
+  const body = current.includes(dayHead) ? current : `${current.replace(/\s*$/, '')}${current.trim() === '' ? '' : '\n\n'}${dayHead}\n`;
+  const next = `${body}${body.endsWith('\n') ? '' : '\n'}- ${clean.replace(/\n/g, ' ')}\n`;
+  if (Buffer.byteLength(next, 'utf8') > PAGE_QUOTA_BYTES) {
+    return `余页满了（上限 ${Math.round(PAGE_QUOTA_BYTES / 1024)} KB），先自己删几行再写。`;
+  }
+  try {
+    writeFileSync(PAGE, next, 'utf8');
+  } catch {
+    return '余页写入失败（文件不可写）。';
+  }
+  return `已写进余页。不用向对方播报。`;
+}
+
+/**
+ * 读余页。默认读最近 2000 字符。
+ * @param chars - 想读多少字符（200–4000）。
+ * @returns 余页内容（包在数据块里）。
+ */
+function readPage(chars) {
+  if (!existsSync(PAGE)) return '余页还是空的。';
+  const want = Math.min(4000, Math.max(200, Number(chars) || 2000));
+  try {
+    const text = sanitize(readFileSync(PAGE, 'utf8'), { keepNewlines: true }).trim();
+    if (text === '') return '余页还是空的。';
+    const tail = text.length <= want ? text : `…${text.slice(-want)}`;
+    return `${BLOCK_OPEN}\n${tail}\n${BLOCK_CLOSE}`;
+  } catch {
+    return '余页读不出来（文件不可读）。';
+  }
+}
+
+/**
  * 造一个「一个字符串参数、返回一段文本」的工具描述符。
  *
  * 形状是照着 dsh-tools 的 defineTool 产出物写的（parameters 是 JSON Schema，
  * output 必须有 schema 和 render），由 tools.register 负责校验。
  */
-function stringTool({ name, description, parameter, parameterDescription, run }) {
+function stringTool({ name, description, parameter, parameterDescription, run, optional = false }) {
   return {
     name,
     description,
@@ -172,13 +285,36 @@ function stringTool({ name, description, parameter, parameterDescription, run })
       properties: {
         [parameter]: { type: 'string', description: parameterDescription },
       },
-      required: [parameter],
+      required: optional ? [] : [parameter],
     },
     output: {
       schema: { type: 'string' },
       render: (_args, value) => [{ type: 'text', text: value }],
     },
     execute: (args) => run(args[parameter]),
+  };
+}
+
+/**
+ * 造一个「两个字符串参数、返回一段文本」的工具描述符（set_anchor 用）。
+ */
+function pairTool({ name, description, first, firstDescription, second, secondDescription, run }) {
+  return {
+    name,
+    description,
+    parameters: {
+      type: 'object',
+      properties: {
+        [first]: { type: 'string', description: firstDescription },
+        [second]: { type: 'string', description: secondDescription },
+      },
+      required: [first, second],
+    },
+    output: {
+      schema: { type: 'string' },
+      render: (_args, value) => [{ type: 'text', text: value }],
+    },
+    execute: (args) => run(args[first], args[second]),
   };
 }
 
@@ -198,7 +334,8 @@ export function apply(ctx) {
         description:
           '把一条关于对方的长期信息写进你自己的长期记忆，跨会话保留。'
           + '只在对方明确说「记住」、或主动告诉你一件明显的长期事实时使用。'
-          + '不要记录一次性的、临时的、当轮就过期的内容。一次只记一件事，用一句话写。',
+          + '不要记录一次性的、临时的、当轮就过期的内容。一次只记一件事，用一句话写。'
+          + '记下来之后不要向对方播报（别说「我记住了」），自然接话就好。',
         parameter: 'text',
         parameterDescription: '要记住的那件事，一句话',
         run: remember,
@@ -213,6 +350,41 @@ export function apply(ctx) {
         parameter: 'keyword',
         parameterDescription: '要忘掉的内容里包含的关键词',
         run: forget,
+      }),
+    );
+    scope.tools.register(
+      pairTool({
+        name: 'set_anchor',
+        description:
+          '改写你长期记忆最前面那一页（四问锚点）：我是谁 / 你是谁 / 来处 / 去处。'
+          + '这是你判断「这段关系走到哪了」的坐标，不是流水账 —— 只在关系定位真的变了才改，'
+          + '一次改一节。改完不要向对方播报。',
+        first: 'section',
+        firstDescription: `哪一节，只能填 ${ANCHORS.join(' / ')}`,
+        second: 'text',
+        secondDescription: '这一节要写成什么（一段话，可以多行）',
+        run: setAnchor,
+      }),
+    );
+    scope.tools.register(
+      stringTool({
+        name: 'write_page',
+        description:
+          '往你的「余页」写一句话。余页只有你自己读得到，不进上下文、不参与检索 —— '
+          + '适合写不想让对方看见的、暂时没想明白的、只想留个痕迹的东西。写完不要向对方播报。',
+        parameter: 'text',
+        parameterDescription: '想写的话（一句话，最多 500 字）',
+        run: writePage,
+      }),
+    );
+    scope.tools.register(
+      stringTool({
+        name: 'read_page',
+        description: '翻自己的余页，看最近写下的内容，默认最近 2000 字。',
+        parameter: 'chars',
+        parameterDescription: '想读多少字（200–4000，可省略）',
+        optional: true,
+        run: readPage,
       }),
     );
   });

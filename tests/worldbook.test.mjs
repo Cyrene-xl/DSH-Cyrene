@@ -688,3 +688,127 @@ test('真实数据：整份数据转成 CRLF 后与 LF 逐字一致', { skip: !e
   assert.ok(lf.length >= 60, `应解析出 60+ 条，实际 ${lf.length}`);
   assert.deepEqual(crlf, lf, 'CRLF 检出下解析结果与 LF 不一致 —— 世界书在 Windows 上会整体失效');
 });
+
+// ── 必须同时命中（本项目扩展）────────────────────────────────────
+// 上游格式没有这个字段：给长条目、泛用标题用 —— 单说一个名字不该把整篇拉进来。
+
+/** 造一份带门槛的条目文本。 */
+function gatedDoc(requireAll) {
+  return `## 白厄
+- 触发词: 白厄, 发小
+- 必须同时命中: ${requireAll}
+- 优先级: 100
+
+白厄是黄金裔，昔涟的发小。
+`;
+}
+
+test('解析：必须同时命中能读进来，「无」当作空', () => {
+  const [gated] = parseWorldbookText(gatedDoc('发小, 黄金裔'), 'g.md');
+  assert.deepEqual(gated.requireAll, ['发小', '黄金裔']);
+  assert.deepEqual(gated.triggers, ['白厄', '发小'], '普通触发词不受影响');
+
+  const [plain] = parseWorldbookText(gatedDoc('无'), 'g.md');
+  assert.deepEqual(plain.requireAll, []);
+});
+
+test('解析：字段名的两种写法都认（必须同时命中 / 必同时命中 / 同时命中）', () => {
+  for (const field of ['必须同时命中', '必同时命中', '同时命中']) {
+    const [entry] = parseWorldbookText(`## 甲\n- 触发词: 甲\n- ${field}: A, B\n\n正文\n`, 'g.md');
+    assert.deepEqual(entry.requireAll, ['A', 'B'], `${field} 没被认出来`);
+  }
+});
+
+test('匹配：门槛词全命中才算，缺一个就拒', () => {
+  const entries = parseWorldbookText(gatedDoc('发小, 黄金裔'), 'g.md');
+  const hit = matchWorldbook(entries, buildCorpus({ userText: '白厄那个发小，是黄金裔吧' }));
+  assert.equal(hit.primary.length, 1);
+  assert.deepEqual(hit.primary[0].matchedKeys.sort(), ['发小', '黄金裔', '白厄'].sort(), '命中的门槛词也要报出来');
+
+  const miss = matchWorldbook(entries, buildCorpus({ userText: '白厄那个发小' }));
+  assert.equal(miss.primary.length, 0, '缺「黄金裔」就不该命中');
+  assert.equal(miss.diagnostics[0]?.code, 'require-all');
+  assert.deepEqual(miss.diagnostics[0].missingKeys, ['黄金裔']);
+});
+
+test('匹配：门槛词可以跨轮/跨槽命中（D0 一个、D1 一个）', () => {
+  const entries = parseWorldbookText(gatedDoc('发小, 黄金裔'), 'g.md');
+  const hit = matchWorldbook(entries, buildCorpus({ userText: '黄金裔到底是什么', previousTexts: ['白厄的发小'] }));
+  assert.equal(hit.primary.length, 1, '两个词分别在不同消息里出现，也算同时命中');
+});
+
+test('匹配：一个门槛词都不命中时不记诊断（不刷日志）', () => {
+  const entries = parseWorldbookText(gatedDoc('发小, 黄金裔'), 'g.md');
+  const { diagnostics } = matchWorldbook(entries, buildCorpus({ userText: '今天天气不错' }));
+  assert.equal(diagnostics.filter((d) => d.code === 'require-all').length, 0);
+});
+
+test('匹配：门槛词大小写不敏感', () => {
+  const entries = parseWorldbookText('## Phainon\n- 触发词: 白厄\n- 必须同时命中: Phainon\n\n白厄。\n', 'g.md');
+  const hit = matchWorldbook(entries, buildCorpus({ userText: 'phaInon 和白厄' }));
+  assert.equal(hit.primary.length, 1);
+});
+
+// ── 单条截断 ─────────────────────────────────────────────────
+// 人物志动辄 600–900 字，一条就能吃掉半个预算。注入时按句界截短，文件本身不动。
+
+/** 造一条长正文条目（句子都以句号结尾，方便验截断位置）。 */
+function longDoc(chars = 700) {
+  const sentence = '黄金裔的血脉在翁法罗斯延续。';
+  const body = sentence.repeat(Math.ceil(chars / sentence.length)).slice(0, chars);
+  return `## 长条目\n- 触发词: 长条目\n- 优先级: 100\n\n${body}\n`;
+}
+
+test('截断：默认把长条目截到 320 字符以内，并带省略号', () => {
+  const entries = parseWorldbookText(longDoc(700), 'l.md');
+  assert.equal(entries[0].content.length, 700, '解析层不截断，数据保持完整');
+
+  const hit = matchWorldbook(entries, buildCorpus({ userText: '长条目' }));
+  const injected = hit.primary[0].entry;
+  assert.ok(injected.content.length <= 320, `注入正文应 ≤320，实际 ${injected.content.length}`);
+  assert.ok(injected.content.endsWith('…'), '截断处该有省略号');
+  assert.equal(injected.fullChars, 700, '要记着原文多长');
+  assert.equal(hit.diagnostics.find((d) => d.code === 'clipped')?.fullChars, 700);
+});
+
+test('截断：切在句号之后，不会把一句话切成半截', () => {
+  const entries = parseWorldbookText(longDoc(700), 'l.md');
+  const injected = matchWorldbook(entries, buildCorpus({ userText: '长条目' })).primary[0].entry.content;
+  const body = injected.slice(0, -1); // 去掉省略号
+  assert.ok(body.endsWith('。'), `应在句末切，实际结尾是「${body.slice(-6)}」`);
+  // 语料是同一句重复，正文里到处都是句号，所以只能验"结尾是完整句"。
+  assert.ok(!/[^。]$/.test(body), '不该以半句结尾');
+});
+
+test('截断：entryMaxChars=0 关闭，拿到完整正文', () => {
+  const entries = parseWorldbookText(longDoc(700), 'l.md');
+  const hit = matchWorldbook(entries, buildCorpus({ userText: '长条目' }), { entryMaxChars: 0 });
+  assert.equal(hit.primary[0].entry.content.length, 700);
+  assert.equal(hit.diagnostics.filter((d) => d.code === 'clipped').length, 0);
+});
+
+test('截断：短条目不受影响，也不记诊断', () => {
+  const entries = parseWorldbookText('## 短\n- 触发词: 短\n\n一句话。\n', 's.md');
+  const hit = matchWorldbook(entries, buildCorpus({ userText: '短' }));
+  assert.equal(hit.primary[0].entry.content, '一句话。');
+  assert.equal(hit.diagnostics.filter((d) => d.code === 'clipped').length, 0);
+});
+
+test('截断：预算按截断后的体积算（两条长条目都塞得下）', () => {
+  const doc = `## 甲\n- 触发词: 甲\n- 优先级: 100\n\n${'甲'.repeat(700)}\n\n## 乙\n- 触发词: 乙\n- 优先级: 90\n\n${'乙'.repeat(700)}\n`;
+  const entries = parseWorldbookText(doc, 'b.md');
+  // 不截断时 1400 字 + 分隔 > 1600 也勉强；截断后 640 字，两条都该留。
+  const hit = matchWorldbook(entries, buildCorpus({ userText: '甲 乙' }), { maxChars: 900, entryMaxChars: 320 });
+  assert.equal(hit.primary.length, 2, '截断后应都进得来');
+  assert.ok(hit.primary.every((h) => h.entry.content.length <= 320));
+});
+
+test('截断：真数据里最长的条目也不再整篇注入', () => {
+  const entries = loadWorldbookDirectory(REAL_DIR);
+  const longest = [...entries].filter((e) => !e.constant).sort((a, b) => b.content.length - a.content.length)[0];
+  const hit = matchWorldbook(entries, buildCorpus({ userText: longest.triggers[0] ?? '昔涟' }));
+  const injected = hit.primary.find((h) => h.entry.id === longest.id);
+  if (injected) {
+    assert.ok(injected.entry.content.length <= 320, `「${longest.title}」注入时该被截断`);
+  }
+});

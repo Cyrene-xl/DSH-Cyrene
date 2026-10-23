@@ -30,6 +30,12 @@ jobs:
       - name: 单元测试
         run: npm test
 
+      # 世界书是随包发运的数据，它的体检也得进 CI ——
+      # 否则「以后谁手改一条触发词/把长条目改回去」这种回归只能靠用户踩到。
+      # 体检口径见 scripts/worldbook-audit.mjs 头部注释；--strict 有问题就退出 1。
+      - name: 世界书体检（--strict）
+        run: npm run wb:audit -- --strict
+
   # ── Windows ────────────────────────────────────────────────────────────────
   #
   # 这个 job 存在的唯一理由：**作者没有自己的电脑，整套东西是在 DSH App（Android）
@@ -60,6 +66,10 @@ jobs:
       - name: 单元测试
         shell: bash
         run: npm test
+
+      - name: 世界书体检（--strict）
+        shell: bash
+        run: npm run wb:audit -- --strict
 
       # 坑：入口判断曾写成 `import.meta.url === \`file://${process.argv[1]}\`` ——
       # 在 Windows 上永不成立（argv[1] 是 C:\...，而 import.meta.url 是 file:///C:/...），
