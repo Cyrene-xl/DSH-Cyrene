@@ -17,7 +17,7 @@
 
 | 变量 | 注册者 | 作用 |
 | --- | --- | --- |
-| `{{user_nickname}}` | `nickname.js` | 可配置称呼，默认「伙伴」 |
+| `{{user_nickname}}` | `nickname.js` | 生效称呼：称呼偏好 > 昵称 > 默认「伙伴」 |
 | `{{cyrene_memory}}` | `memory.js` | 长期记忆，外加 `remember` / `forget` 两个工具 |
 
 ### 这两块逻辑刻意挂在哪

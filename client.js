@@ -1,6 +1,8 @@
 /**
- * dsh-cyrene 的浏览器半边 —— 只做一件事：在「设置 → 通用」里放一行
- * 「角色扮演模式」开关。
+ * dsh-cyrene 的浏览器半边 —— 在「设置 → 通用」里放两行：
+ *
+ *   1. 「称呼偏好」输入框（留空时用昵称；对齐上游的 nickname / callPreference 两个字段）
+ *   2. 「角色扮演模式」开关
  *
  * ## 为什么开关要放在浏览器半边
  *
@@ -30,8 +32,10 @@ window.__ModuleLoader__.load({
 
     /** 本插件自己的 locale 命名空间（同 ns + 同语言不能重复注册）。 */
     var NS = 'dsh-cyrene';
-    /** 主机接口。 */
+    /** 主机接口：角色扮演模式开关。 */
     var API = '/cyrene-scene-api';
+    /** 主机接口：称呼偏好 / 昵称。 */
+    var ADDRESS_API = '/cyrene-nickname-api';
 
     //#region 行样式（与官方设置行一致）
 
@@ -84,6 +88,19 @@ window.__ModuleLoader__.load({
       transition: 'left 120ms ease'
     };
     var knobOnStyle = { left: '21px' };
+    var inputStyle = {
+      flex: '0 1 240px',
+      minWidth: '120px',
+      font: 'inherit',
+      fontSize: '13px',
+      lineHeight: '20px',
+      color: 'var(--dsw-alias-label-primary)',
+      background: 'var(--dsw-alias-bg-module-platform)',
+      border: '0.5px solid var(--dsw-alias-border-l2)',
+      borderRadius: '8px',
+      padding: '5px 10px',
+      outline: 'none'
+    };
 
     //#endregion
 
@@ -116,6 +133,119 @@ window.__ModuleLoader__.load({
           if (!body || body.ok !== true) throw new Error((body && body.error) || '保存失败');
           return body.enabled === true;
         });
+    }
+
+    /**
+     * 读称呼配置。
+     * @returns Promise<{ nickname: string, callPreference: string, address: string }>
+     */
+    function fetchAddress() {
+      return fetch(ADDRESS_API, { headers: { accept: 'application/json' } })
+        .then(function (res) { return res.json(); })
+        .then(function (body) {
+          if (!body || body.ok !== true) throw new Error((body && body.error) || '读取失败');
+          return {
+            nickname: String(body.nickname || ''),
+            callPreference: String(body.callPreference || ''),
+            address: String(body.address || '')
+          };
+        });
+    }
+
+    /**
+     * 写称呼偏好（或昵称）。
+     * @param field - 'callPreference' / 'nickname'。
+     * @param value - 新值，空串表示清除。
+     * @returns Promise<{ nickname, callPreference, address }>
+     */
+    function saveAddress(field, value) {
+      return fetch(ADDRESS_API, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ field: field, value: value })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (body) {
+          if (!body || body.ok !== true) throw new Error((body && body.error) || '保存失败');
+          return {
+            nickname: String(body.nickname || ''),
+            callPreference: String(body.callPreference || ''),
+            address: String(body.address || '')
+          };
+        });
+    }
+
+    /**
+     * 设置行：「称呼偏好」输入框。
+     * @param props - 槽位传入的 `{ t }`。
+     * @returns React 元素。
+     */
+    function AddressRow(props) {
+      var t = props && typeof props.t === 'function' ? props.t : function (key) { return key; };
+      var profilePair = react.useState(null);
+      var profile = profilePair[0];
+      var setProfile = profilePair[1];
+      var draftPair = react.useState('');
+      var draft = draftPair[0];
+      var setDraft = draftPair[1];
+      var errorPair = react.useState('');
+      var error = errorPair[0];
+      var setError = errorPair[1];
+
+      function apply(next) {
+        setProfile(next);
+        setDraft(next.callPreference);
+      }
+
+      react.useEffect(function () {
+        var alive = true;
+        fetchAddress()
+          .then(function (next) { if (alive) apply(next); })
+          .catch(function (err) { if (alive) setError(String((err && err.message) || err)); });
+        return function () { alive = false; };
+      }, []);
+
+      function commit() {
+        if (profile === null) return;
+        var value = draft.trim();
+        if (value === profile.callPreference) return;
+        setError('');
+        saveAddress('callPreference', value)
+          .then(function (next) { apply(next); })
+          .catch(function (err) { setError(String((err && err.message) || err)); });
+      }
+
+      var hint = profile === null
+        ? t('addressLoading')
+        : (profile.callPreference !== ''
+          ? t('addressOn') + '「' + profile.address + '」'
+          : t('addressOff') + '「' + profile.address + '」');
+
+      return react.createElement(
+        'div',
+        { style: rowStyle },
+        react.createElement(
+          'div',
+          { style: rowTextStyle },
+          react.createElement('div', { style: titleStyle }, t('addressTitle')),
+          react.createElement('div', { style: descStyle }, hint),
+          error ? react.createElement('div', { style: errorStyle }, error) : null
+        ),
+        react.createElement('input', {
+          type: 'text',
+          value: draft,
+          placeholder: t('addressPlaceholder'),
+          'aria-label': t('addressTitle'),
+          style: inputStyle,
+          disabled: profile === null,
+          onChange: function (event) { setDraft(String(event.target.value)); },
+          onBlur: commit,
+          onKeyDown: function (event) {
+            if (event.key === 'Enter') commit();
+            if (event.key === 'Escape') setDraft(profile === null ? '' : profile.callPreference);
+          }
+        })
+      );
     }
 
     /**
@@ -193,15 +323,35 @@ window.__ModuleLoader__.load({
           zh: {
             title: '角色扮演模式',
             onHint: '已开启：每一轮回复都会带场景描述、你的动作描述与你的外貌描述（叙述＋对话）。',
-            offHint: '平常聊天。开着她会按角色扮演推进：每轮都写场景、动作和样子。'
+            offHint: '平常聊天。开着她会按角色扮演推进：每轮都写场景、动作和样子。',
+            addressTitle: '称呼偏好',
+            addressPlaceholder: '例如：伙伴（留空时用昵称）',
+            addressLoading: '正在读取…',
+            addressOn: '她这样叫你：',
+            addressOff: '留空，用昵称：',
           },
           en: {
             title: 'Role-play mode',
             onHint: 'On: every reply includes a scene description, your action, and your appearance (narration + dialogue).',
-            offHint: 'Plain chat. Turn it on and each reply narrates the scene, her actions, and how she looks.'
+            offHint: 'Plain chat. Turn it on and each reply narrates the scene, her actions, and how she looks.',
+            addressTitle: 'Preferred address',
+            addressPlaceholder: 'e.g. partner (falls back to your nickname)',
+            addressLoading: 'Loading…',
+            addressOn: 'She calls you: ',
+            addressOff: 'Empty — using your nickname: ',
           }
         });
       }, 'dsh-cyrene: locale');
+
+      /* 称呼偏好：排在角色扮演开关之前（先定"怎么叫"，再定"怎么演"）。 */
+      ctx.slots.inject('settings.general.item', function () {
+        return ctx.slots.register({
+          name: 'settings.general.item',
+          id: 'cyrene-address',
+          order: 44,
+          locale: NS
+        }, AddressRow);
+      });
 
       ctx.slots.inject('settings.general.item', function () {
         return ctx.slots.register({
