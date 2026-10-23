@@ -156,6 +156,21 @@ test('注入：开着时强制要求场景 / 动作 / 外貌三样', () => {
   assert.ok(text.includes('不要提「角色扮演模式」'), '别出戏')
 })
 
+test('注入：输出格式规范 —— 描述进括号、台词不进', () => {
+  const text = sceneBlock(true)
+  assert.ok(text.includes('输出格式（硬性）'), '格式段必须存在')
+  assert.ok(text.includes('所有描述都放进中文全角括号（）里'), '描述统一进括号')
+  assert.ok(text.includes('台词不放进括号'), '台词要在括号外')
+  assert.ok(text.includes('省略主语'), '括号里的动作省略主语、对象称「你」')
+  assert.ok(text.includes('不要嵌套括号'), '禁止嵌套括号')
+  // 示例本身必须符合这条规则：括号里没有台词，台词在括号外
+  const example = text.split('\n').find((line) => line.includes('窗外的雨敲在玻璃上'))
+  assert.ok(example !== undefined, '要有示例')
+  assert.ok(example.includes('（窗外的雨敲在玻璃上，屋里只亮着一盏灯）'), '场景在括号里')
+  assert.ok(example.includes('你回来得比我想的早呀。'), '台词在括号外')
+  assert.ok(example.includes('（把茶杯推到你面前'), '动作用括号')
+})
+
 test('注入：默认不预设身份，开了才有「开拓者」那段', () => {
   const plain = sceneBlock(true)
   assert.ok(!plain.includes('开拓者'), '不开启时一个字都不提身份')
