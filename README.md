@@ -677,6 +677,29 @@ npm run wb:audit -- --strict  # 有问题时退出码 1（适合预提交；CI �
 
 细节见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) 第 1 节与第 7 节。
 
+## 权限与兼容性
+
+一句话：**零运行时依赖、零外部服务**；会读写 `<DSH_HOME>` 下本插件自己的状态文件，
+浏览器半边只调用本机接口。
+
+| 项 | 声明 |
+| --- | --- |
+| Node.js | `>=22` |
+| DSH | `>=0.1.0 <0.3.0`（在 0.1.5-rc.2 实测；0.2.0+ 的声明式预设由 `scripts/install.mjs` 分支处理） |
+| 运行时依赖 | 无（只用 `node:` 内置模块） |
+| 生命周期脚本 | 无（没有 `preinstall` / `install` / `postinstall` / `prepare`） |
+| 文件 | 读写 `<DSH_HOME>/cyrene-*.{md,json}`（记忆 / 风格 / 开关 / 扉页）；`worldbook/data` 只读 |
+| 网络 | 仅浏览器半边 `fetch` 本机 `/cyrene-*-api`，不访问任何外部服务 |
+| 凭据 | 不读任何 token / 密钥；只读 `DSH_HOME`、`HOME` 两个宿主变量 |
+
+DSH STORE 的固定源扫描会把上面的「文件」「网络」标成能力信号 —— 这是功能本身决定的
+（记忆要落盘、设置页要端口），所以这个项目在商店里可能一直是 `blocked` / 人工复核状态。
+完整的披露（依赖、权限、外部服务、失败边界、一次性 Profile 的安装/卸载证据）见
+[`docs/store-contract.md`](./docs/store-contract.md)。
+
+本地自检：`npm run verify:package` —— 检查 `engines`、`exports` 全是文件、`files` 覆盖
+所有 export 目标、无生命周期脚本、无运行时依赖。这条也在 CI 里跑。
+
 ## 风险提醒
 
 用之前把这几条看完——它们都对应真实会发生的情况，不是免责话术。
@@ -819,6 +842,7 @@ dsh-cyrene/
 │       ├── agent.cordis.yml 工作模式人设 + 标准模式全套工具
 │       └── preset.yml       模态元信息
 ├── scripts/
+│   ├── verify-package.mjs   发布契约自检（engines / exports / files / 生命周期 / 依赖）
 │   ├── install.sh           Linux / macOS
 │   ├── install.mjs          跨平台（Node，Windows 也走这条）
 │   └── export-preset-declarations.mjs  DSH 0.2.0+ 的声明式预设导出
@@ -829,6 +853,7 @@ dsh-cyrene/
 │   ├── preset.test.mjs      预设结构 + 与内置 standard 的漂移护栏 + 声明导出往返
 │   └── portability.test.mjs 只有别的平台才暴露得出来的写法（静态断言）
 ├── docs/
+│   ├── store-contract.md        发布契约与能力披露（DSH STORE 用）
 │   ├── writing-your-preset.md   怎么写自己的人设
 │   ├── theme-recipe.md          复刻观感指南：插件清单 + 参数配方
 │   ├── host-side.md             宿主半体与会话级插件

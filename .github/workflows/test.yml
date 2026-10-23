@@ -30,6 +30,27 @@ jobs:
       - name: 单元测试
         run: npm test
 
+      # 发布契约：engines / exports 全为文件 / files 覆盖 export 目标 / 无生命周期脚本。
+      # 商店的固定源检查会因为「清单没交代清楚」直接判不可安装，而单测发现不了。
+      - name: 发布契约自检
+        run: npm run verify:package
+
+      # 一次性 Profile 证据：临时 DSH_HOME 里 安装 → 幂等复跑 → 卸载。
+      # 绝不用真实 ~/.dsh。
+      - name: 临时 Profile 试装 / 幂等 / 卸载
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-ci
+        run: |
+          set -euo pipefail
+          node scripts/install.mjs
+          test -f "$DSH_HOME/.agent-presets/chat/agent.cordis.yml"
+          test -f "$DSH_HOME/.agent-presets/cyrene-work/agent.cordis.yml"
+          node scripts/install.mjs > rerun.log
+          grep -q "已是最新" rerun.log
+          node scripts/install.mjs --uninstall
+          test ! -e "$DSH_HOME/.agent-presets/chat"
+          echo "✓ 安装 / 幂等 / 卸载 三条都过"
+
       # 世界书是随包发运的数据，它的体检也得进 CI ——
       # 否则「以后谁手改一条触发词/把长条目改回去」这种回归只能靠用户踩到。
       # 体检口径见 scripts/worldbook-audit.mjs 头部注释；--strict 有问题就退出 1。

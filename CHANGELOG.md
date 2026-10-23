@@ -4,6 +4,34 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.7.1] — 2026-10-23
+
+DSH STORE 固定源检查的整改版：**不是功能更新，是把"清单没交代清楚"补上**。
+
+### 修复商店判定的三类确定性问题
+
+- **显式声明 DSH 兼容范围**：`package.json` 的 `engines` 里同时写 `node` 与 `dsh`
+  （`>=0.1.0 <0.3.0`）。之前只有 `node`，商店判 `DSH compatibility is not explicitly declared`。
+- **移除非法的目录 export**：`"./worldbook/": "./worldbook/"` 是目录形式的目标，商店判
+  `runtime artifact path is invalid: ./worldbook/`；而且它会让整份扫描
+  `fixed-source scan is incomplete`。删掉即可（`"./worldbook"` 这个文件目标本来就有）。
+- **去掉凭据信号的假阳性**：`memory.js` 读自定义环境变量 `DSH_CYRENE_PAGE_QUOTA` 被
+  扫成 `credentials` 信号。扉页配额改成固定 64 KB（测试本来就不依赖这个变量）。
+
+### 透明度
+
+- 新增 `docs/store-contract.md`：兼容范围、运行文件、零依赖 / 零生命周期脚本 /
+  零外部服务、权限信号（`files` / `network` 是功能决定的，`commands` / `credentials` 为否）、
+  失败边界，以及一次性 Profile 的安装 / 幂等 / 卸载证据。
+- 新增 `npm run verify:package`：把商店那几条确定性要求变成本地检查（`engines`、
+  `exports` 必须是文件、`files` 覆盖所有 export 目标、无生命周期脚本、无运行时依赖）。
+- CI 增加：发布契约自检 + Linux 临时 `DSH_HOME` 的试装 / 幂等 / 卸载（Windows 那条早就有）。
+
+### 说明
+
+`files` 与 `network` 信号是设计使然（记忆要落盘、设置页要接口），本项目在商店里
+可能仍是 `blocked` / 人工复核 —— 这次整改的目标是"没有未交代清楚的部分"，不是自动上架。
+
 ## [0.7.0] — 2026-10-23
 
 「角色扮演场景」改名「角色扮演模式」，从**括号自动触发**改成**设置里的开关**。

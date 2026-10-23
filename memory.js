@@ -34,8 +34,10 @@ const STORE = `${HOME}/cyrene-memory.md`;
  * 原名「余页」，概念借自「一页永恒·记忆」，本项目改称「扉页」（见 THIRD_PARTY_NOTICES 的致谢）。
  */
 const PAGE = `${HOME}/cyrene-page.md`;
-/** 扉页大小上限（默认 64 KB；测试可用环境变量调小）。 */
-const PAGE_QUOTA_BYTES = Number(process.env.DSH_CYRENE_PAGE_QUOTA) || 64 * 1024;
+/** 扉页大小上限（64 KB）。**不读自定义环境变量**：插件只该读 DSH_HOME / HOME 这类
+ * 宿主变量，读别的 env 会被 DSH STORE 的源码扫描判成「凭据」能力信号（假阳性；
+ * 见 docs/store-contract.md）。测试要触发配额就直接写足够多的条目。 */
+const PAGE_QUOTA_BYTES = 64 * 1024;
 /** 扉页单条的上限，避免一次写入塞进整篇。 */
 const MAX_PAGE_ENTRY_CHARS = 500;
 /**
