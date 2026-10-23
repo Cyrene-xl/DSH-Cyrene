@@ -10,7 +10,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -401,6 +401,25 @@ test('条件块：接线 —— custom 档按两个开关决定注入', () => {
   // 关掉模式（身份开着也不算）
   writeFileSync(scenePath, JSON.stringify({ version: 1, enabled: false, trailblazer: true }), 'utf8')
   assert.ok(!text().includes('开拓者段'), '模式关着时身份开关无效')
+})
+
+test('条件块：只对 custom 档生效 —— 内置档即使带标记也不注入', () => {
+  // 内置档用临时目录里的同名文件，塞进标记；打开两个开关也必须**不注入**那段，
+  // 且标记本身不能漏给模型。
+  const dir = join(TMP, 'builtin-with-marker')
+  mkdirSync(dir, { recursive: true })
+  const source = readFileSync(join(STYLE_DIR, STYLES.default.file), 'utf8')
+  writeFileSync(join(dir, STYLES.default.file), `${source}\n${TRAILBLAZER_OPEN}\n开拓者段\n${TRAILBLAZER_CLOSE}\n`, 'utf8')
+  const scenePath = join(TMP, 'builtin-scene.json')
+  writeFileSync(scenePath, JSON.stringify({ version: 1, enabled: true, trailblazer: true }), 'utf8')
+
+  const { ctx, contexts } = mockCtx()
+  const storePath = freshStore('builtin-marker')
+  apply(ctx, { storePath, dir, customPath: join(TMP, 'none.md'), scenePath })
+  const session = { id: 's1', snapshotEvents: () => [{ type: 'agent-preset/selected', data: { agentPreset: 'chat' } }] }
+  const text = contexts[0].text({ agent: { session } })
+  assert.ok(!text.includes('开拓者段'), '内置档不该注入条件块内容')
+  assert.ok(!text.includes('dsh-cyrene:trailblazer'), '标记也不能漏出去')
 })
 
 // ───────────────────────── 接线 ─────────────────────────

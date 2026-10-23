@@ -277,6 +277,7 @@ export const TRAILBLAZER_CLOSE = '<!-- /dsh-cyrene:trailblazer -->'
  * 关掉时一个字都不占上下文 —— 比让模型"自己判断要不要用"可靠，也比维护两份文件省事。
  *
  * 规则：
+ *   - **只对 custom 档生效**（内置五档不认条件块；标记若出现在内置档里也会被剥掉，不会漏给模型）；
  *   - 标记行本身不注入；
  *   - 未闭合的块**原样保留**（宁可多注入一点，也不静默吞掉用户写的内容）；
  *   - 没有标记的文件原样返回。
@@ -419,7 +420,13 @@ export function apply(ctx, config = {}) {
       const styleId = resolveStyle(state, sessionId)
       const raw = readStyleText(styleId, { dir: styleDir, customPath })
       const scene = readSceneState(scenePath)
-      const text = applyStyleConditionals(raw, { trailblazer: scene.enabled === true && scene.trailblazer === true })
+      /*
+       * 条件块**只对 custom 档生效**（也就是本机那份「微病娇」）：
+       *   - 内置五档是随包发运的固定文本，不该因为一个开关就变出别的段落；
+       *   - 但内置档里万一出现标记，也按"不注入"处理（剥掉），免得标记本身漏给模型。
+       */
+      const trailblazer = styleId === 'custom' && scene.enabled === true && scene.trailblazer === true
+      const text = applyStyleConditionals(raw, { trailblazer })
       // 两档强度只对 custom 档有意义；内置五档不带标记。
       const marker = styleId === 'custom' ? tierMarker(state.customTier) : ''
       return buildStyleBlock(text, marker)
