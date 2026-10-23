@@ -8,6 +8,7 @@
  * nickname.js（称呼变量）、worldbook/（世界书注入）。它们只作用于该预设的会话，
  * 不污染其它模式。详见 docs/host-side.md。
  */
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -150,6 +151,187 @@ function readBody(req) {
   });
 }
 
+/** 设置界面用的接口路径：编辑最后一条用户消息。 */
+export const EDIT_API_PATH = '/cyrene-edit-api';
+/** 编辑按钮的图标。 */
+export const EDIT_ICON_PATH = '/cyrene-edit-icon.png';
+/** 图标文件（随包发运，浏览器半边用 `<img>` 引用）。 */
+const EDIT_ICON_FILE = fileURLToPath(new URL('./assets/edit-icon.png', import.meta.url));
+/** 能进入「表面」（模型可见历史）的事件类型。 */
+const SURFACE_TYPES = new Set(['system/message', 'user/message', 'assistant/message', 'tool/result']);
+
+/**
+ * 把事件日志折叠成当前的**表面**（模型可见的那串消息）。
+ *
+ * 会话日志是 append-only 的：一条事件可以带 `surfaceOp: { op:'replace', startSeq, endSeq }`
+ * 把一段旧节点从表面里换掉（旧事件仍留在日志里）。这里按同样的规则重放一遍，
+ * 得到「现在哪些 seq 还在表面上、顺序如何」—— 编辑功能靠它判断能不能改、改哪段。
+ * @param events - 按 seq 升序的事件数组（`session.snapshotEvents()`）。
+ * @returns 表面节点的 seq 数组。
+ */
+export function foldSurface(events) {
+  const nodes = [];
+  for (const event of Array.isArray(events) ? events : []) {
+    if (!event || !SURFACE_TYPES.has(event.type)) continue;
+    const op = event.surfaceOp;
+    if (op === undefined || op === 'append') {
+      nodes.push(event.seq);
+      continue;
+    }
+    const startIdx = nodes.indexOf(op.startSeq);
+    const endIdx = nodes.indexOf(op.endSeq);
+    // 坏日志（端点已被更早的替换盖掉）就跳过这一条，别让整次折叠抛错。
+    if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) continue;
+    nodes.splice(startIdx, endIdx - startIdx + 1, event.seq);
+  }
+  return nodes;
+}
+
+/**
+ * 判断能不能编辑「最后一条用户消息」，以及要替换哪一段。
+ *
+ * 规则（都是为了让模型看到的历史自洽）：
+ *   - 只认 `source.kind === 'user'` 的消息 —— 插件注入的标记不算用户输入；
+ *   - 只改**最后一条**用户消息，且它之后不能再有用户消息；
+ *   - 那一轮必须已经结束：表面最后是 `assistant/message`（已回复）或者
+ *     这条用户消息本身（还没回复）。最后是 tool/result / system 说明还在跑，拒绝；
+ *   - 带图片 / 文件的消息不编辑 —— 替换事件只带文本，附件会被静默丢掉。
+ * @param events - 按 seq 升序的事件数组。
+ * @returns `{ ok, reason?, startSeq, endSeq, shadowed, text, source }`。
+ */
+export function planEdit(events) {
+  const bySeq = new Map();
+  for (const event of Array.isArray(events) ? events : []) bySeq.set(event.seq, event);
+  const nodes = foldSurface(events);
+  if (nodes.length === 0) return { ok: false, reason: '这个会话还没有消息' };
+
+  const last = bySeq.get(nodes[nodes.length - 1]);
+  if (last !== undefined && last.type === 'tool/result') {
+    return { ok: false, reason: '她还在执行工具，等这一轮结束再改' };
+  }
+  if (last !== undefined && last.type === 'system/message') {
+    return { ok: false, reason: '这一轮还没开始，暂时不能编辑' };
+  }
+
+  let userIdx = -1;
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const event = bySeq.get(nodes[i]);
+    if (event?.type === 'user/message' && event.data?.source?.kind === 'user') {
+      userIdx = i;
+      break;
+    }
+  }
+  if (userIdx === -1) return { ok: false, reason: '这个会话里还没有你发的消息' };
+  if (userIdx !== nodes.length - 1 && nodes.length - 1 !== userIdx) {
+    // 后面还有 assistant 回复是正常的（userIdx 是最后一个用户消息），
+    // 但若后面还有**用户消息**，说明我们找到的不是最后一条 —— 直接拒绝，避免改错。
+    for (let i = userIdx + 1; i < nodes.length; i += 1) {
+      const event = bySeq.get(nodes[i]);
+      if (event?.type === 'user/message' && event.data?.source?.kind === 'user') {
+        return { ok: false, reason: '只能改最后一条消息' };
+      }
+    }
+  }
+
+  const entry = bySeq.get(nodes[userIdx]);
+  const content = Array.isArray(entry?.data?.content) ? entry.data.content : [];
+  const textBlocks = content.filter((block) => block?.type === 'text');
+  const otherBlocks = content.filter((block) => block?.type !== 'text');
+  if (otherBlocks.length > 0) {
+    return { ok: false, reason: '这条消息带图片或文件，暂时不能在这里编辑' };
+  }
+  const text = textBlocks.map((block) => String(block.text ?? '')).join('\n').trim();
+  if (text === '') return { ok: false, reason: '这条消息里没有可编辑的文字' };
+
+  const shadowed = nodes.slice(userIdx);
+  return {
+    ok: true,
+    startSeq: shadowed[0],
+    endSeq: shadowed[shadowed.length - 1],
+    shadowed,
+    text,
+    source: entry.data.source
+  };
+}
+
+/**
+ * `/cyrene-edit-api` 的处理器。
+ *
+ *   GET  ?sessionId=...  → 最后一条用户消息的文本 + 能不能编辑
+ *   POST { sessionId, text } → 用**表面替换**把「这条消息 + 它之后的所有表面节点」
+ *                              换成一条改好的用户消息
+ *
+ * 为什么是替换而不是改文件：会话是 append-only 的事件日志（磁盘上是多帧 zstd），
+ * 直接改日志会和内存里的投影、缓存脱同步。表面替换是 DSH 自己的机制：旧事件留在日志里，
+ * 只是不再进入模型可见的历史 —— 这也让「编辑」天然可追溯（日志里能看到原话）。
+ * @param req - 请求对象。
+ * @param res - 响应对象。
+ * @param sessions - `ctx.sessions` 服务（测试可注入假实现）。
+ */
+export async function handleEditApi(req, res, sessions) {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    if (req.method === 'GET') {
+      const sessionId = String(url.searchParams.get('session') || '');
+      const session = sessions?.get?.(sessionId);
+      if (session === undefined || session === null) {
+        json(res, { ok: false, error: '找不到这个会话' }, 404);
+        return;
+      }
+      const plan = planEdit(session.snapshotEvents(0, session.seq));
+      json(res, plan.ok
+        ? { ok: true, text: plan.text, canEdit: true }
+        : { ok: true, text: '', canEdit: false, reason: plan.reason });
+      return;
+    }
+    if (req.method !== 'POST') {
+      json(res, { ok: false, error: '只支持 GET / POST' }, 405);
+      return;
+    }
+    const raw = await readBody(req);
+    let payload = {};
+    try {
+      payload = raw ? JSON.parse(raw) : {};
+    } catch {
+      json(res, { ok: false, error: '请求体不是 JSON' }, 400);
+      return;
+    }
+    const sessionId = String(payload.sessionId || '');
+    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+    if (text === '') {
+      json(res, { ok: false, error: '消息不能为空' }, 400);
+      return;
+    }
+    if (text.length > 20000) {
+      json(res, { ok: false, error: '消息太长了' }, 400);
+      return;
+    }
+    const session = sessions?.get?.(sessionId);
+    if (session === undefined || session === null) {
+      json(res, { ok: false, error: '找不到这个会话' }, 404);
+      return;
+    }
+    const plan = planEdit(session.snapshotEvents(0, session.seq));
+    if (!plan.ok) {
+      json(res, { ok: false, error: plan.reason }, 409);
+      return;
+    }
+    // 新的用户消息：source 沿用原消息的（可能是 user，也可能带了别的标记字段）。
+    session.append('user/message', {
+      id: randomUUID(),
+      role: 'user',
+      content: [{ type: 'text', text }],
+      source: { ...(plan.source ?? { kind: 'user' }) }
+    }, {
+      surfaceOp: { op: 'replace', startSeq: plan.startSeq, endSeq: plan.endSeq },
+      sourceEventSeqs: plan.shadowed
+    });
+    json(res, { ok: true, text, startSeq: plan.startSeq, endSeq: plan.endSeq });
+  } catch (error) {
+    json(res, { ok: false, error: String(error?.message ?? error) }, 400);
+  }
+}
+
 /**
  * `/cyrene-scene-api` 的处理器：读 / 改「角色扮演模式」开关。
  *
@@ -213,6 +395,37 @@ export function apply(ctx) {
     scope.effect(
       () => scope.webServer.register({ kind: 'exact', path: NICKNAME_API_PATH, handler: handleNicknameApi }),
       'dsh-cyrene: /cyrene-nickname-api'
+    );
+    scope.effect(
+      () => scope.webServer.register({
+        kind: 'exact',
+        path: EDIT_ICON_PATH,
+        handler: (req, res) => {
+          try {
+            const body = readFileSync(EDIT_ICON_FILE);
+            res.writeHead(200, {
+              'Content-Type': 'image/png',
+              'Cache-Control': 'public, max-age=86400'
+            });
+            res.end(body);
+          } catch {
+            res.writeHead(404).end();
+          }
+        }
+      }),
+      'dsh-cyrene: /cyrene-edit-icon.png'
+    );
+  });
+
+  // 编辑「最后一条用户消息」：同时需要 webServer 与 sessions，缺一个就不挂（预设仍能跑）。
+  ctx.inject(['webServer', 'sessions'], (scope) => {
+    scope.effect(
+      () => scope.webServer.register({
+        kind: 'exact',
+        path: EDIT_API_PATH,
+        handler: (req, res) => handleEditApi(req, res, scope.sessions)
+      }),
+      'dsh-cyrene: /cyrene-edit-api'
     );
   });
 }
