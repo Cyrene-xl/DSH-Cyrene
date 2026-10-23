@@ -11,6 +11,7 @@
 | Node.js | `>=22` | 仓库零运行时依赖，测试用 `node:test`，需要 22 内置的测试运行器 |
 | DSH | `>=0.1.0 <0.3.0` | 在 **0.1.5-rc.2** 上实测（Android App / web profile）；0.2.0+ 的声明式预设由 `scripts/install.mjs` 分支处理 |
 | Profile | `web` | 预设与客户端半边都按 web profile 验证；其它 profile 未验证 |
+| 固定源 | Commit | 安装请固定到 [`install-source.md`](./install-source.md) 里的 40 位 Commit，不要用浮动 `main` |
 
 `package.json` 的 `engines` 里同时声明了 `node` 与 `dsh` 两个范围 —— DSH STORE 的
 自动检查要求"显式声明"，缺 `engines.dsh` 会被判

@@ -46,8 +46,8 @@ function load() {
   return parseWorldbookDocs(names.map((name) => ({ name, text: readFileSync(join(dir, name), 'utf8') })));
 }
 
-/** 估算 token：中文 1 字 ≈ 0.6 token，英文按 4 字符 1 token。粗略到够做对比。 */
-function estimateTokens(text) {
+/** 估算词元：中文 1 字 ≈ 0.6 词元，英文按 4 字符 1 词元。粗略到够做对比。 */
+function estimateUnits(text) {
   const s = String(text ?? '');
   const cjk = (s.match(/[\u4e00-\u9fff]/g) ?? []).length;
   return Math.round(cjk * 0.6 + (s.length - cjk) / 4);
@@ -65,7 +65,7 @@ const sum = (list) => list.reduce((a, b) => a + b, 0);
 const at = (p) => lens[Math.min(lens.length - 1, Math.floor(lens.length * p))];
 console.log('');
 console.log(`长度（字符）：最短 ${lens[0]} | p50 ${at(0.5)} | p90 ${at(0.9)} | 最长 ${lens[lens.length - 1]} | 合计 ${sum(lens)}`);
-console.log(`估算 token：合计 ${estimateTokens(entries.map((e) => e.content).join(''))}`);
+console.log(`估算词元：合计 ${estimateUnits(entries.map((e) => e.content).join(''))}`);
 
 const tooLong = entries.filter((e) => e.content.length > target * 2);
 console.log(`超过目标两倍（>${target * 2} 字符）的条目：${tooLong.length}`);
@@ -94,7 +94,7 @@ if (longUngated.length > 0) {
 const constant = entries.filter((e) => e.constant);
 const constantChars = sum(constant.map((e) => e.content.length));
 console.log('');
-console.log(`常驻条目：${constant.length} 条 / ${constantChars} 字符（≈ ${estimateTokens(constant.map((e) => e.content).join(''))} token，**每轮**都注入）`);
+console.log(`常驻条目：${constant.length} 条 / ${constantChars} 字符（≈ ${estimateUnits(constant.map((e) => e.content).join(''))} 词元，**每轮**都注入）`);
 
 // ── 3) 触发词 ────────────────────────────────────────────────
 // 常驻条目不走关键词匹配，它的触发词永远不会被扫描 —— 统计里也要排除，
@@ -145,7 +145,7 @@ const hits = entries.filter((e) => !e.constant).sort(byPriority);
 const clippedLen = (e) => (entryMax > 0 ? Math.min(e.content.length, entryMax) : e.content.length);
 const worst = constantChars + sum(hits.slice(0, 8).map(clippedLen));
 console.log('');
-console.log(`最坏情况（常驻 + 8 条最长命中${entryMax > 0 ? `，单条按 ${entryMax} 字符截断` : ''}）：${worst} 字符 ≈ ${estimateTokens('中'.repeat(worst))} token`);
+console.log(`最坏情况（常驻 + 8 条最长命中${entryMax > 0 ? `，单条按 ${entryMax} 字符截断` : ''}）：${worst} 字符 ≈ ${estimateUnits('中'.repeat(worst))} 词元`);
 console.log(`默认预算 maxChars=1600 会在命中块超预算时按优先级截断。`);
 if (worst > 6000) problems.push(`最坏注入 ${worst} 字符，明显超预算（建议压到 90–110 字/条）`);
 

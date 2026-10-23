@@ -27,6 +27,14 @@ DSH STORE 固定源检查的整改版：**不是功能更新，是把"清单没�
   `exports` 必须是文件、`files` 覆盖所有 export 目标、无生命周期脚本、无运行时依赖）。
 - CI 增加：发布契约自检 + Linux 临时 `DSH_HOME` 的试装 / 幂等 / 卸载（Windows 那条早就有）。
 
+### `build-dsh-plugin` 只读预检整改
+
+- 预检（`audit-plugin.mjs`）把 `scripts/worldbook-audit.mjs` 里的 `estimateTokens()`
+  和「估算 token」日志判成 **secret logging**（正则命中 `token`）——函数改名
+  `estimateUnits()`、日志改说「词元」，能力不变。
+- 新增 [`docs/install-source.md`](./docs/install-source.md)：写明 0.7.1 的 40 位
+  Commit 锚点，满足「固定源可复现」那条检查（之前只保证"能装"，没写"钉在哪个 Commit"）。
+
 ### 说明
 
 `files` 与 `network` 信号是设计使然（记忆要落盘、设置页要接口），本项目在商店里
