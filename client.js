@@ -533,7 +533,7 @@ window.__ModuleLoader__.load({
         if (!owner) continue;
         /* 已经有一个就不重复塞（每轮 mutation 都会进来）。 */
         if (row.querySelector('.' + EDIT_BTN_CLASS) !== null) continue;
-        var host = row.querySelector('[class*="_actions"]') || row;
+        var host = row.querySelector('[class*="actions"]') || row;
         var button = document.createElement('button');
         button.type = 'button';
         button.className = EDIT_BTN_CLASS;

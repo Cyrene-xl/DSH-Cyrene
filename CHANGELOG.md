@@ -4,6 +4,16 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.7.2] — 2026-10-24
+
+DSH 0.2.1 兼容修复（DSH 0.2.1-rc.2 实测）。
+
+### 修复
+
+- 消息操作区的 DOM 选择器从 `[class*="_actions"]` 放宽到 `[class*="actions"]`：
+  0.2.x 的 CSS Modules 类名变成 `TS9iAW_actions` 这种**不带前导下划线**的形式，
+  旧选择器匹配不到，编辑铅笔会掉到整行末尾（而不是操作区）。
+
 ## [0.7.1] — 2026-10-23
 
 DSH STORE 固定源检查的整改版：**不是功能更新，是把"清单没交代清楚"补上**。
