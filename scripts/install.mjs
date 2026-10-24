@@ -23,10 +23,15 @@
  *   node scripts/install.mjs --force       # 覆盖已有且不同的预设（仍会确认）
  *   node scripts/install.mjs --rollback    # 按 journal 恢复到上一次安装前
  *   node scripts/install.mjs --uninstall   # 卸载（同样需要确认）
+ *   node scripts/install.mjs --generation=declarative   # 显式指定代际（legacy|declarative）
+ *
+ * 代际默认自动探测（`dsh --version`、全局安装路径），探测不到时**只写目录并打印警告**，
+ * 不再静默降级。
  */
 import { copyFile, cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import { dirname, join, relative } from 'node:path';
@@ -45,6 +50,13 @@ const uninstall = argv.has('--uninstall');
 const dryRun = argv.has('--dry-run');
 const assumeYes = argv.has('--yes');
 const rollbackMode = argv.has('--rollback');
+/** `--generation=legacy|declarative`：显式指定代际，跳过自动探测。 */
+const generationArg = (() => {
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith('--generation=')) return arg.slice('--generation='.length);
+  }
+  return process.env.DSH_GENERATION || null;
+})();
 
 /** 目录内容指纹：相对路径 + 文件内容，按路径排序后哈希。 */
 async function dirFingerprint(dir) {
@@ -90,31 +102,103 @@ async function discoverPresetIds() {
 
 /**
  * 「声明式注册表」那一代才有的插件（DSH 0.2.0+）。
- * 为什么用"这个包装没装"判断代数：探测版本要联网或猜安装路径，而这个包在不在
- * profile 的 node_modules 里是能确定的。
+ * profile 的 node_modules 里可能有它（开发/旧布局），但 0.2.x 正式安装里
+ * 内置包走全局解析，profile 里只有用户插件 —— 所以它**不能单独当代际探针**。
  */
 const DECLARATIVE_PLUGIN = '@deepseek-ai/dsh-agent-preset';
-/** 我们写进 profile 补丁的那段以这行开头，用来判重（幂等）。 */
-const DECLARATIVE_MARKER = '# ── dsh-cyrene 预设声明（自动写入，勿手改）────────────────────';
+/** 我们写进 profile 补丁的那段以这行开头（短标记，旧版本写下的就是它）。 */
+const DECLARATIVE_HEAD = '# ── dsh-cyrene 预设声明（自动写入，勿手改）';
+/** 新写入时用的完整标记（带尾部横线，便于人眼分辨）。 */
+const DECLARATIVE_MARKER = DECLARATIVE_HEAD + '────────────────────';
 
-/** 找出需要写声明的 profile：既装了注册表插件，又装了本包。 */
-async function declarativeProfiles() {
+/** 从字符串里抠出版本号。 */
+function parseVersion(text) {
+  const m = String(text || '').match(/(\d+)\.(\d+)\.(\d+)/);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+/** 读一个 package.json 的 version；读不到返回 null。 */
+function versionFrom(path) {
+  try {
+    return parseVersion(JSON.parse(readFileSync(path, 'utf8')).version);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 探测已安装 DSH 的版本。
+ *
+ * 顺序：DSH_INSTALL 环境变量 → `dsh --version` → 常见全局路径。
+ * 全部失败返回 null（调用方按"未知"处理，并打印显式警告，不静默降级）。
+ * @returns `[major, minor, patch]` 或 null。
+ */
+function globalDshVersion() {
+  const candidates = [];
+  if (process.env.DSH_INSTALL) {
+    candidates.push(join(process.env.DSH_INSTALL, 'package.json'));
+    candidates.push(join(process.env.DSH_INSTALL, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'));
+  }
+  try {
+    const out = execFileSync('dsh', ['--version'], { encoding: 'utf8', timeout: 15000 });
+    const v = parseVersion(out);
+    if (v !== null) return v;
+  } catch { /* 没有 dsh 命令就走路径探测 */ }
+  candidates.push(
+    '/usr/local/lib/node_modules/@deepseek-ai/dsh/package.json',
+    '/usr/lib/node_modules/@deepseek-ai/dsh/package.json',
+    join(homedir(), '.npm-global', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'package.json'),
+    join(dirname(process.execPath), '..', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'package.json'),
+  );
+  for (const path of candidates) {
+    const v = versionFrom(path);
+    if (v !== null) return v;
+  }
+  return null;
+}
+
+/** 探测结果缓存，一次运行只算一次。 */
+let detectedGeneration = null;
+
+/**
+ * 当前 DSH 是「目录代」（0.1.x）还是「声明式」（0.2.0+）。
+ * @returns `'legacy' | 'declarative' | 'unknown'`
+ */
+function detectGeneration() {
+  if (generationArg === 'legacy' || generationArg === 'declarative') return generationArg;
+  if (detectedGeneration !== null) return detectedGeneration;
+  const v = globalDshVersion();
+  detectedGeneration = v === null ? 'unknown' : (v[0] > 0 || v[1] >= 2 ? 'declarative' : 'legacy');
+  return detectedGeneration;
+}
+
+/**
+ * 找出需要写声明的 profile。
+ *
+ * 判据：装了本包 + （profile 里有注册表包标记，或探测到 DSH >= 0.2.0）。
+ * 返回 `{ declarative, legacy }`：legacy 是"装了本包但按探测只该拷目录"的 profile，
+ * 用于在计划里打印显式警告 —— 0.2.x 上静默只拷目录等于什么都没装。
+ */
+async function collectProfiles() {
   const root = join(dshHome, 'profiles');
-  const out = [];
+  const declarative = [];
+  const legacy = [];
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {
-    return out;
+    return { declarative, legacy };
   }
+  const generation = detectGeneration();
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isDirectory()) continue;
     const dir = join(root, entry.name);
-    if (!existsSync(join(dir, 'node_modules', DECLARATIVE_PLUGIN))) continue;
     if (!existsSync(join(dir, 'node_modules', 'dsh-cyrene'))) continue;
-    out.push({ name: entry.name, dir });
+    const hasMarker = existsSync(join(dir, 'node_modules', DECLARATIVE_PLUGIN));
+    if (hasMarker || generation === 'declarative') declarative.push({ name: entry.name, dir });
+    else legacy.push({ name: entry.name, dir });
   }
-  return out;
+  return { declarative, legacy };
 }
 
 /** 读 journal；没有/坏掉返回 null。 */
@@ -149,8 +233,20 @@ async function planChanges(ids) {
     presets.push({ id, src, dest, exists, srcFingerprint, destFingerprint, action });
   }
 
+  const { declarative, legacy } = await collectProfiles();
+  const warnings = [];
+  if (legacy.length > 0) {
+    const gen = detectGeneration();
+    for (const profile of legacy) {
+      warnings.push(
+        `profile ${profile.name}：没探测到声明式注册表（DSH 代际=${gen}），` +
+        `只会写 .agent-presets —— 如果你的 DSH 是 0.2.0+，这些预设不会被加载。` +
+        `请显式重跑：node scripts/install.mjs --yes --generation=declarative`,
+      );
+    }
+  }
   const profiles = [];
-  for (const profile of await declarativeProfiles()) {
+  for (const profile of declarative) {
     const patchPath = join(profile.dir, 'cordis.patch.yml');
     let current = '';
     try {
@@ -158,7 +254,14 @@ async function planChanges(ids) {
     } catch {
       current = '';
     }
-    const hasMarker = current.includes(DECLARATIVE_MARKER);
+    const markerIndex = current.indexOf(DECLARATIVE_HEAD);
+    const hasMarker = markerIndex >= 0;
+    /* 已有声明时比对内容：一样就 skip，不一样就 update（预设文本改过不能当没看见）。 */
+    let action = 'append';
+    if (hasMarker) {
+      const desired = patchBody(ids);
+      action = current.slice(markerIndex).trim() === desired.trim() ? 'skip' : 'update';
+    }
     profiles.push({
       name: profile.name,
       dir: profile.dir,
@@ -166,16 +269,17 @@ async function planChanges(ids) {
       exists: existsSync(patchPath),
       sha256: await fileSha256(patchPath),
       hasMarker,
-      action: hasMarker ? 'skip' : 'append',
+      action,
     });
   }
-  return { presets, profiles };
+  return { presets, profiles, warnings, generation: detectGeneration() };
 }
 
 /** 打印一次性安装计划。 */
 function printPlan(plan) {
   console.log('一次性安装计划：');
   console.log(`  目标 DSH_HOME：${dshHome}`);
+  console.log(`  探测到的 DSH 代际：${plan.generation}`);
   for (const item of plan.presets) {
     const label = {
       install: '新建',
@@ -188,11 +292,12 @@ function printPlan(plan) {
     if (item.exists) console.log(`    前置哈希：sha-256 ${item.destFingerprint}`);
   }
   for (const item of plan.profiles) {
-    const label = item.action === 'append' ? '追加声明' : '已有声明，跳过';
+    const label = { append: '追加声明', update: '更新声明（内容有变）', skip: '已有声明，跳过' }[item.action];
     console.log(`  profile ${item.name}：${label}`);
     console.log(`    → ${item.patchPath}`);
     if (item.sha256 !== null) console.log(`    前置哈希：sha-256 ${item.sha256}`);
   }
+  for (const warning of plan.warnings || []) console.log(`  ⚠️  ${warning}`);
 }
 
 /**
@@ -230,9 +335,20 @@ async function assertPresetPrecondition(item) {
   }
 }
 
-/** 写补丁的正文。 */
+/** 生成声明正文（不含用户原有内容）。 */
+function patchBody(ids) {
+  return `${DECLARATIVE_MARKER}\n${ids.map((id) => declarationFor(id)).join('\n')}\n`;
+}
+
+/**
+ * 写补丁的正文：有旧声明块就**整块替换**（预设文本更新能生效），没有就追加。
+ * @param current - 现有补丁内容。
+ * @param ids - 预设 id 列表。
+ */
 function nextPatchText(current, ids) {
-  const body = `${DECLARATIVE_MARKER}\n${ids.map((id) => declarationFor(id)).join('\n')}\n`;
+  const body = patchBody(ids);
+  const markerIndex = current.indexOf(DECLARATIVE_HEAD);
+  if (markerIndex >= 0) return current.slice(0, markerIndex) + body;
   const trimmed = current.trim();
   return trimmed === '' || trimmed === '[]'
     ? body
@@ -309,9 +425,9 @@ async function healthCheck(plan, ids) {
     }
   }
   for (const item of plan.profiles) {
-    if (item.action !== 'append') continue;
+    if (item.action === 'skip') continue;
     const text = await readFile(item.patchPath, 'utf8').catch(() => '');
-    if (!text.includes(DECLARATIVE_MARKER)) {
+    if (!text.includes(DECLARATIVE_HEAD)) {
       throw new Error(`健康检查失败（补丁里没有声明标记）：${item.patchPath}`);
     }
   }
@@ -352,7 +468,7 @@ async function main() {
   if (uninstall) {
     console.log('');
     console.log('一次性卸载计划：');
-    const targets = await declarativeProfiles();
+    const targets = (await collectProfiles()).declarative;
     for (const target of targets) {
       console.log(`  profile ${target.name} 的补丁里可能有声明：${join(target.dir, 'cordis.patch.yml')}`);
     }
@@ -429,7 +545,7 @@ async function main() {
   };
   try {
     for (const item of plan.profiles) {
-      if (item.action !== 'append') continue;
+      if (item.action === 'skip') continue;
       console.log('');
       console.log(`── profile: ${item.name} ──`);
       const currentSha = await fileSha256(item.patchPath);

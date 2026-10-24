@@ -161,6 +161,46 @@ test('安全：--force 覆盖后可以用 --rollback 恢复原预设', () => {
   assert.equal(readFileSync(join(dest, 'agent.cordis.yml'), 'utf8'), 'mine: true\n', '应恢复成用户原来那份')
 })
 
+test('代际探测：profile 里没有注册表包，也能靠 --generation=declarative 写声明', () => {
+  const home = makeHome({ declarative: [], legacy: [] })
+  // 只装本包、没有 @deepseek-ai/dsh-agent-preset 标记 —— 真实 0.2.x profile 的样子
+  mkdirSync(join(home, 'profiles', 'p-x', 'node_modules', 'dsh-cyrene'), { recursive: true })
+  const patch = join(home, 'profiles', 'p-x', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  const out = runInstall(home, ['--yes', '--generation=declarative'])
+  assert.ok(out.includes('追加声明'), '应计划写声明')
+  assert.ok(readFileSync(patch, 'utf8').includes('preset-chat'), '补丁里应有预设声明')
+})
+
+test('代际探测：显式 legacy 时打印警告，不静默', () => {
+  const home = makeHome({ declarative: [], legacy: [] })
+  mkdirSync(join(home, 'profiles', 'p-x', 'node_modules', 'dsh-cyrene'), { recursive: true })
+  const patch = join(home, 'profiles', 'p-x', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+
+  const out = runInstall(home, ['--yes', '--generation=legacy'])
+  assert.ok(out.includes('⚠️'), '要给出显式警告')
+  assert.ok(out.includes('--generation=declarative'), '要告诉用户怎么修')
+  assert.equal(readFileSync(patch, 'utf8'), '[]\n', 'legacy 下不写补丁')
+})
+
+test('声明式代：声明块内容变了会整块更新，不会重复追加', () => {
+  const home = makeHome({ declarative: ['p-new'] })
+  const patch = join(home, 'profiles', 'p-new', 'cordis.patch.yml')
+  writeFileSync(patch, '[]\n', 'utf8')
+  runInstall(home)
+
+  // 模拟旧版本写下的短标记 + 过期内容
+  writeFileSync(patch, '# ── dsh-cyrene 预设声明（自动写入，勿手改）\n过期内容\n', 'utf8')
+  const out = runInstall(home)
+  assert.ok(out.includes('更新声明'), '应计划更新而不是跳过')
+  const text = readFileSync(patch, 'utf8')
+  assert.ok(text.includes('preset-chat'), '应写回正确声明')
+  assert.ok(text.includes('过期内容') === false, '旧块应被整块替换')
+  assert.equal(text.split('dsh-cyrene 预设声明').length - 1, 1, '不能重复追加')
+})
+
 test('安全：安装成功会留下 journal（--rollback 的依据）', () => {
   const home = makeHome({ declarative: ['p-new'] })
   writeFileSync(join(home, 'profiles', 'p-new', 'cordis.patch.yml'), '[]\n', 'utf8')

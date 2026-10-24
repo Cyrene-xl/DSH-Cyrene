@@ -136,6 +136,10 @@ dsh plugin --profile <你的 profile> add link:/你的路径/DSH-Cyrene
 node scripts/install.mjs --yes
 ```
 
+> **代际探测**：脚本默认自动判断 0.1.x（目录扫描）还是 0.2.0+（声明式注册表）。
+> 探测不到时会打印警告并且只写目录；桌面端等特殊布局可显式指定：
+> `node scripts/install.mjs --yes --generation=declarative`。
+>
 > **为什么要 `--yes`**：安装会写 `<DSH_HOME>/.agent-presets/` 和 profile 的
 > `cordis.patch.yml`，属于 Profile 变更。脚本会先打印**一次性计划**，写入前要求
 > **精确确认**（终端里手输 `yes`，或显式 `--yes`）；覆盖前**备份**、落盘**原子**
@@ -907,7 +911,7 @@ dsh-cyrene/
 ## 开发与测试
 
 ```bash
-npm test              # 单元测试（当前 73 条）
+npm test              # 单元测试（全量；条数随测试增长，以 CI 输出为准）
 npm run harness:check # 语法检查：对所有运行时代码做 node --check
 ```
 

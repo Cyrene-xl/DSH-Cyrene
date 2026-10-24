@@ -767,6 +767,9 @@
   config:
     maxBytes: 65536
 
+- id: time-context
+  name: '@deepseek-ai/dsh-time-context'
+
 # ── shell ───────────────────────────────────────────────────────────────────
 
 # `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
@@ -807,6 +810,9 @@
 # chooses is whether its agent can collect and stop background work at all.
 - id: tool-jobs
   name: '@deepseek-ai/dsh-tool-jobs'
+
+- id: tool-schedule
+  name: '@deepseek-ai/dsh-tool-schedule'
 
 # ── skills ──────────────────────────────────────────────────────────────────
 
@@ -968,6 +974,10 @@
     #
     # ⚠️ 内置 standard 预设里这三行**没有** disabled。这是本预设与上游抄本之间
     #    **唯一一处有意的差异**，tests/preset.test.mjs 有断言盯着它。
+    - id: workflow-ptc
+      name: '@deepseek-ai/dsh-workflow-ptc'
+      disabled: true
+
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'
       disabled: true
@@ -997,6 +1007,16 @@
 
 # The `web` service and its search provider stay in the host composition; only
 # the model-facing tool is per-session.
+# 这两个是 standard 里就默认 disabled 的行（插件市场/管理器只给设置页用）。
+# 抄本要保持 id 对齐，但**不要**在会话里启用它们。
+- id: tool-plugin-manager
+  name: '@deepseek-ai/dsh-plugin-manager/tools'
+  disabled: true
+
+- id: tool-plugin-market
+  name: '@deepseek-ai/dsh-plugin-market/tools'
+  disabled: true
+
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'
   config:

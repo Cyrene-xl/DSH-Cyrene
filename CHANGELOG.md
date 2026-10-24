@@ -4,6 +4,34 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.7.4] — 2026-10-25
+
+外部审查清单（`dsh-cyrene-问题清单.md`）四条修复。
+
+### 安装器：0.2.x 不再静默不注册
+
+- 代际探测不再只看 profile 的 `node_modules`（0.2.x 正式安装里内置包走全局解析，
+  那里根本没有 `@deepseek-ai/dsh-agent-preset`）：改为 `DSH_INSTALL` → `dsh --version`
+  → 常见全局路径依次探测；
+- 探测不到时**打印显式警告**并给出 `--generation=declarative` 的修法，不再静默只拷目录；
+- 新增 `--generation=legacy|declarative`（也可用 `DSH_GENERATION`）显式指定；
+- profile 补丁里的声明块现在按内容比对：预设文本改了会**整块更新**，而不是看到标记就跳过。
+
+### 抄本漂移护栏恢复工作
+
+- `tests/preset.test.mjs` 的 `loadUpstream()` 同时支持 0.1.x 的
+  `presets/standard/agent.cordis.yml` 与 0.2.x 的 `presets/standard.patch.yml`；
+- `cyrene-work` 补上 `time-context`、`tool-schedule`、`workflow-ptc`（disabled），
+  `tool-plugin-manager` / `tool-plugin-market` 与上游对齐为 disabled；
+- 测试从 6 条 skip 恢复为真实比对：**238 → 239，0 失败 0 跳过**。
+
+### 文档
+
+- README / AGENTS 不再写死「73 条测试」；
+- `index.js` 的加载日志不再提已删除的 `install.ps1` / `install.bat`，改为说明
+  0.1.x / 0.2.x 各自的落点；
+- 删掉一段挂错位置的「插件加载钩子」注释块。
+
 ## [0.7.3] — 2026-10-24
 
 聊天模式跟随对方语言。

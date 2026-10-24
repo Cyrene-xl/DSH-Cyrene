@@ -40,17 +40,38 @@ const DSH_INSTALL = process.env.DSH_INSTALL || '/usr/local/lib/node_modules/@dee
 function loadUpstream() {
   if (!existsSync(join(DSH_INSTALL, 'package.json'))) return undefined;
   let YAML;
-  let stdPath;
   try {
-    const req = createRequire(join(DSH_INSTALL, 'package.json'));
-    YAML = req('yaml');
-    const presetsPkg = req.resolve('@deepseek-ai/dsh-agent-presets/package.json');
-    stdPath = join(dirname(presetsPkg), 'presets', 'standard', 'agent.cordis.yml');
+    YAML = createRequire(join(DSH_INSTALL, 'package.json'))('yaml');
   } catch {
     return undefined;
   }
-  if (typeof YAML?.parse !== 'function' || !existsSync(stdPath)) return undefined;
-  return { YAML, stdPath };
+  if (typeof YAML?.parse !== 'function') return undefined;
+  const jsTag = { tag: '!<tag:yaml.org,2002:js>', resolve: (v) => ({ js: v }) };
+  const readRows = (file) => {
+    try {
+      return YAML.parse(readFileSync(file, 'utf8'), { customTags: [jsTag] });
+    } catch {
+      return null;
+    }
+  };
+
+  /* 0.1.x：预设包是复数 @deepseek-ai/dsh-agent-presets，standard 是完整预设文件。 */
+  try {
+    const req = createRequire(join(DSH_INSTALL, 'package.json'));
+    const presetsPkg = req.resolve('@deepseek-ai/dsh-agent-presets/package.json');
+    const stdPath = join(dirname(presetsPkg), 'presets', 'standard', 'agent.cordis.yml');
+    const rows = readRows(stdPath);
+    if (Array.isArray(rows)) return { YAML, stdRows: rows, stdSource: stdPath };
+  } catch {
+    /* 0.2.x 里没有这个包，继续往下 */
+  }
+
+  /* 0.2.x：包名单数，standard 变成 dsh-web-app 的 patch 行，插件列表在 insert[].config.plugins。 */
+  const stdPath = join(DSH_INSTALL, 'node_modules', '@deepseek-ai', 'dsh-web-app', 'presets', 'standard.patch.yml');
+  const patch = readRows(stdPath);
+  const plugins = patch?.[0]?.insert?.[0]?.config?.plugins;
+  if (Array.isArray(plugins)) return { YAML, stdRows: plugins, stdSource: stdPath };
+  return undefined;
 }
 
 const upstream = loadUpstream();
@@ -184,7 +205,7 @@ guarded('预设：表达风格只挂对话模式 —— 工作模式禁用（安
 });
 
 guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允许已知附加项', () => {
-  const stdIds = rowIds(parse(upstream.stdPath));
+  const stdIds = rowIds(upstream.stdRows);
   const mineIds = rowIds(parse(presetFile('cyrene-work')));
 
   // 1) 我们**不能少**：少一行就是 DSH 升级后抄本漂移的直接证据
@@ -198,7 +219,16 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
   );
 
   // 2) 我们**只能多**这些：多出别的说明有人往抄本里塞了东西
-  const ADDED = ['cyrene-memory', 'dsh-cyrene-worldbook'];
+  const ADDED = [
+    'cyrene-memory',
+    'dsh-cyrene-worldbook',
+    /* 可选 provider：standard 里没有，本预设显式关掉留档。 */
+    'tool-subagent-codex',
+    'tool-subagent-claude-code',
+    /* workflow 默认关闭的三行：standard 里有 tool-workflow，没有这两个。 */
+    'workflow-worker-thread',
+    'tool-ralph',
+  ];
   const extra = mineIds.filter((id) => !stdIds.includes(id)).sort();
   assert.deepEqual(
     extra,
@@ -218,9 +248,18 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
   //
   //    这条断言的作用：将来若有人从 standard 重新整段抄一遍，会把 disabled 一起
   //    丢掉、于是又踩回同一个坑。这里点出来，改的话必须同时改这行。
-  const INTENTIONALLY_DISABLED = ['workflow-worker-thread', 'tool-workflow', 'tool-ralph'];
+  const INTENTIONALLY_DISABLED = [
+    /* workflow 三件套 + ptc 变体：依赖 workflowEngine，起不来会连累整条预设。 */
+    'workflow-worker-thread',
+    'tool-workflow',
+    'tool-ralph',
+    'workflow-ptc',
+    /* 可选 subagent provider：standard 里没有这两行，本预设留档但关掉。 */
+    'tool-subagent-codex',
+    'tool-subagent-claude-code',
+  ];
   const mine = parse(presetFile('cyrene-work'));
-  const std = parse(upstream.stdPath);
+  const std = upstream.stdRows;
   const disabledOf = (rows) => {
     const out = [];
     const walk = (list) => {
