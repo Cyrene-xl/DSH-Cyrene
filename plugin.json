@@ -2,7 +2,7 @@
   "id": "dsh-cyrene",
   "name": "dsh-cyrene",
   "displayName": "纯文本对话模式",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "DeepSeek Harness 插件：增加「纯文本对话模式」agent 预设——整份替换系统提示词进行纯角色对话，并附带随包世界书（61 条设定，按触发词自动注入）、长期记忆（remember / forget / set_anchor / write_page / read_page）与称呼偏好 / 昵称（称呼偏好优先），设置 → 通用里的「角色扮演模式」开关（开了一直演：场景 / 动作 / 外貌三样描述）、编辑最后一条消息（表面替换，原文仍留在日志里）；联网搜索保留，表情包需另装 dsh-meme。随包人设文本与世界书数据整理自开源项目 Cyrene-Agent（MIT）。",
   "author": "Cyrene-xl",
   "license": "MIT",
