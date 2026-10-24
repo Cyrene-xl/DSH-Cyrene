@@ -4,14 +4,14 @@ DSH STORE 与 `build-dsh-plugin` 的检查都要求"可固定的源码锚点"：
 一个**不可变的 Commit**，而不是浮动的 `main`。
 
 - 仓库：<https://github.com/Cyrene-xl/DSH-Cyrene>
-- **0.7.1 的源码锚点**：`8d812336261e97fc3eaefe78e189348295e1836e`
+- **0.7.4 的源码锚点（审查清单修复后）**：`ee5191f25589132389b2a3835890b9d18a1ba091`
   （0.7.1 的最终源码：商店固定源整改 + 安装器加固）
 - 安装（固定到该 Commit）：
 
   ```bash
   git clone https://github.com/Cyrene-xl/DSH-Cyrene
   cd DSH-Cyrene
-  git checkout 8d812336261e97fc3eaefe78e189348295e1836e
+  git checkout ee5191f25589132389b2a3835890b9d18a1ba091
   dsh plugin --profile <你的 profile> add link:$PWD
   node scripts/install.mjs
   ```
