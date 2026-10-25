@@ -13,7 +13,9 @@
 | `dsh-ui-boost` | 第三方（DoshinJiu，MIT） | ❌ 同上 |
 | `dsh-anime-theme` | 第三方（zxr2115-1，MIT） | ❌ 同上 |
 | `dsh-meme` | 第三方（yyh-001，MIT） | ❌ 同上 |
-| `dsha-brand-rename` / `dsha-hero-mascot` | DSHA 内置（`private: true`） | ❌ 无公开仓库，无权重分发 |
+| `dsh-custom-splash` | 第三方 fork（MIT） | ❌ 引导去原仓库安装 |
+| `dsh-550c-boot` | 第三方（MIT，npm） | ❌ 引导去 npm / 原仓库安装 |
+| `dsha-brand-rename` / `dsha-hero-mascot` / `dsha-pet-button` | 本机 `plugin-src`（私用） | ❌ 无公开仓库，无权重分发 |
 | 你的 `dream-skin.json` 等配置 | 你自己，但**含个人数据** | ❌ 见下 |
 
 配置文件里混着不能外发的东西：
@@ -33,6 +35,11 @@
 dsh plugin --profile <你的 profile> add dsh-dream-skin
 dsh plugin --profile <你的 profile> add dsh-ui-boost
 dsh plugin --profile <你的 profile> add dsh-meme
+
+# 启动动画：两个里只装一个（都会往 index.html 注入首帧）
+dsh plugin --profile <你的 profile> add dsh-custom-splash
+# 或（DSH >= 0.2.0-rc.1）：
+dsh plugin --profile <你的 profile> add dsh-550c-boot
 ```
 
 | 插件 | 作用 | 仓库 |
@@ -41,6 +48,8 @@ dsh plugin --profile <你的 profile> add dsh-meme
 | `dsh-ui-boost` | 主色调着色、Dock | <https://github.com/DoshinJiu/dsh-ui-boost> |
 | `dsh-meme` | 表情包图库与 `send_meme` | <https://github.com/yyh-001/dsh-meme> |
 | `dsh-anime-theme` | 随机二次元壁纸（可选，本项目配方未启用） | <https://github.com/zxr2115-1/dsh-anime-theme> |
+| `dsh-custom-splash` | 启动动画（自己的视频 / 内置 CSS 片头） | <https://github.com/diexianxiang/dsh-custom-splash>（现存 fork） |
+| `dsh-550c-boot` | 550C 片头 + UEG 授权界面（与上者二选一） | <https://github.com/yannicksong0106/dsh-550c-boot> |
 
 ## 第二步：填参数
 
@@ -109,11 +118,22 @@ dsh plugin --profile <你的 profile> add dsh-meme
 - `dsh-dream-skin:wallpaper-follows-skin: "0"` 表示壁纸不跟随皮肤切换；
   想让它跟随就改成 `"1"`
 
-### 昵称与吉祥物
+### 品牌、吉祥物、启动动画、桌宠
 
-界面上的品牌名替换与首页吉祥物由 DSHA **内置插件**提供
-（`dsha-brand-rename` / `dsha-hero-mascot`），**不是**可独立分发的插件。
-相关配置在 `~/.dsh/dsha-brand-rename.json` 等文件里，按 DSHA 自己的设置入口调整即可。
+这几样都是**本机私用插件**，不是可公开分发的包；设置位置和限制各不相同，换机 / 升级
+时最容易丢的就是它们：
+
+| 项 | 插件 | 存在哪 | 换端口 / 升级会丢吗 |
+|---|---|---|---|
+| 品牌字、新会话标题、输入框文案、权限名、风格按钮 | `dsha-brand-rename` | `~/.dsh/dsha-brand-rename.json` 的 `view` 字段（宿主持久化） | **不会**（跟随 `~/.dsh` 备份） |
+| 吉祥物图片 / 大小 / 位置 | `dsha-hero-mascot` | 浏览器 `localStorage`（`dsha-hero-mascot:view`） | **会** —— localStorage 按 origin 隔离，换端口或换包名后要重新上传 |
+| 启动动画（视频 / CSS） | `dsh-custom-splash` | `~/.dsh/dsh-custom-splash.json` + `~/.dsh/startup-video/boot.mp4` | **不会**（宿主文件） |
+| 启动动画（550C） | `dsh-550c-boot` | 设置页 → 550C；播放模式与曲库存在浏览器 localStorage | 模式/曲库**会**丢；片头本身随插件 |
+| 桌宠唤出 | `dsha-pet-button` | `~/.dsh/dsha-pet-button.json` | **不会**；`returnPackage` 在 0.2.x 应为 `dsh.android.client` |
+
+> 0.2.1 升级时吃过一次亏：`dsha-hero-mascot` 的吉祥物图与 `dsha-brand-rename` 的
+> 文案都曾只存 localStorage，换 origin 后整份消失。`dsha-brand-rename` 已经改成
+> 宿主持久化；吉祥物和 550C 的曲库仍是浏览器存储，迁移时记得重新设一次。
 
 ## 分享配方时的检查清单
 
@@ -123,6 +143,8 @@ dsh plugin --profile <你的 profile> add dsh-meme
 - [ ] 没有 `recent` 之类的浏览历史数组
 - [ ] 没有任何 `/root/...`、`/sdcard/...`、`C:\...` 形式的绝对路径
 - [ ] 没有 token、cookie、账号信息
+- [ ] `dsha-brand-rename` 的 `view` 若一起分享，先确认里面没有你自己的昵称/称呼偏好
+- [ ] 没有把 `dsha-hero-mascot:view`（吉祥物图，base64 很大）当配置分享
 - [ ] 配方里出现的第三方插件，都指向其**原始仓库**而不是打包副本
 - [ ] 表情图库图片没有一起打包（版权归各自作者）
 

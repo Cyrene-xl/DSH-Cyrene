@@ -784,6 +784,8 @@ dsh plugin --profile <你的 profile> add dsh-meme
 | `dsh-dream-skin` | 皮肤 / 壁纸 / 面板透明度 | 常用 | [RevolutionLA/dsh-dream-skin](https://github.com/RevolutionLA/dsh-dream-skin) |
 | `dsh-ui-boost` | 主色调着色、Dock 等界面微调 | 可选 | [DoshinJiu/dsh-ui-boost](https://github.com/DoshinJiu/dsh-ui-boost) |
 | `dsh-anime-theme` | 随机二次元壁纸背景 | **非必要** | [zxr2115-1/dsh-anime-theme](https://github.com/zxr2115-1/dsh-anime-theme) |
+| `dsh-custom-splash` | 启动动画：播放自己的视频，或切到内置 CSS 片头 | 可选 | [diexianxiang/dsh-custom-splash](https://github.com/diexianxiang/dsh-custom-splash)（上游仓库已失效，这是现存的 fork） |
+| `dsh-550c-boot` | 550C 片头 + UEG 访问授权界面 | 可选（与 `dsh-custom-splash` **二选一**） | npm `dsh-550c-boot`（[源码](https://github.com/yannicksong0106/dsh-550c-boot)） |
 
 > **`dsh-anime-theme` 是非必要的纯外观插件。** 它只做随机壁纸，能力与
 > `dsh-dream-skin` 的壁纸功能**重叠**；本插件的主职（两套预设的加载、人设、世界书、
@@ -793,6 +795,21 @@ dsh plugin --profile <你的 profile> add dsh-meme
 > **空样式表**，一条规则都不写。此时它在界面上唯一的痕迹是右上角那个
 > "换壁纸 / 开-关"小控件；卸载它只会让那个控件一起消失，
 > **不会影响其它插件给你的背景与皮肤**。
+
+**两个启动动画插件都往 `index.html` 注入首帧，同时装会叠在一起** —— 只留一个：
+`dsh-custom-splash` 适合"放自己的视频"，`dsh-550c-boot` 自带片头与授权界面、在
+DSH 0.2.x 上需要 `dsh >= 0.2.0-rc.1`。
+
+### 本机私用（不引导安装）
+
+下面这些只在作者自己的 `~/.dsh/plugin-src/` 里维护，没有公开安装入口，这里只记录
+它们**各自把设置存在哪**，方便换机/升级时迁移：
+
+| 插件 | 作用 | 设置位置 |
+|---|---|---|
+| `dsha-brand-rename` | 品牌字、新会话标题、输入框文案、权限名、风格按钮 | `~/.dsh/dsha-brand-rename.json`（`view` 字段，宿主持久化，换端口不丢） |
+| `dsha-hero-mascot` | 新会话页左侧吉祥物图片与位置 | 浏览器 `localStorage`（`dsha-hero-mascot:view`）—— **按 origin 隔离，换端口/换包名会丢** |
+| `dsha-pet-button` | 左上角按钮唤起 Live2D 桌宠，延时切回 DSHA | `~/.dsh/dsha-pet-button.json`（`returnPackage` 已指向新包名 `dsh.android.client`） |
 
 安装方式以各自仓库的说明为准，通常是：
 
