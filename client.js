@@ -49,6 +49,8 @@ window.__ModuleLoader__.load({
     var API = '/cyrene-scene-api';
     /** 主机接口：手动检查更新（GitHub releases/latest）。 */
     var UPDATE_API = '/cyrene-update-api';
+    /** 主机接口：表达风格档位。 */
+    var STYLE_API = '/cyrene-style-api';
     /** 主机接口：称呼偏好 / 昵称。 */
     var ADDRESS_API = '/cyrene-nickname-api';
     /** 主机接口：编辑最后一条用户消息。 */
@@ -208,6 +210,8 @@ window.__ModuleLoader__.load({
 
     /** 会话服务（apply 里注入；没有就不挂这个功能）。 */
     var sessionsScope = null;
+    /** 0.2.x 的当前会话由工作区持有（sessions 快照不再带 current）。 */
+    var workspaceRef = null;
     /** DOM 补丁的观察者。 */
     var editObserver = null;
     /** rAF 合并：一次重渲染会触发成百上千条 mutation。 */
@@ -221,8 +225,25 @@ window.__ModuleLoader__.load({
       try {
         var list = sessionsScope && sessionsScope.sessions && sessionsScope.sessions.list;
         var snapshot = list && typeof list.getSnapshot === 'function' ? list.getSnapshot() : null;
-        if (!snapshot || snapshot.current === undefined) return undefined;
-        return snapshot.byId[snapshot.current];
+        if (!snapshot || !snapshot.byId) return undefined;
+        var id;
+        if (snapshot.current !== undefined && snapshot.current !== null) {
+          id = snapshot.current;
+        } else if (workspaceRef && workspaceRef.mainReference && workspaceRef.mainReference.sessionId) {
+          id = workspaceRef.mainReference.sessionId;
+        } else {
+          /* 0.2.x 没有 current：退到最近更新的空白会话（Hero 页就是它）。 */
+          var ids = Array.isArray(snapshot.ids) ? snapshot.ids : Object.keys(snapshot.byId);
+          var best = null;
+          for (var i = 0; i < ids.length; i++) {
+            var item = snapshot.byId[ids[i]];
+            if (!item || item.blank !== true) continue;
+            if (best === null || (item.updatedAt || 0) > (best.updatedAt || 0)) best = item;
+          }
+          if (best !== null) return best;
+        }
+        if (id === undefined) return undefined;
+        return snapshot.byId[id];
       } catch (err) {
         return undefined;
       }
@@ -797,6 +818,122 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 设置行：表达风格（会话级）。
+     *
+     * 档位存在 `<DSH_HOME>/cyrene-style.json`，由宿主 style.js 每轮注入。
+     * 在空白会话里选档会同时写成「新会话默认」—— 0.2.x 开始对话时会换会话 id，
+     * 只写 per-session 会落到一个随后不用的 id 上。
+     * @param props - 槽位传入的 `{ t }`。
+     * @returns React 元素。
+     */
+    function StyleRow(props) {
+      var t = props && typeof props.t === 'function' ? props.t : function (key) { return key; };
+      var statePair = react.useState({
+        loading: true, styles: [], style: '', defaultStyle: '', busy: false, error: ''
+      });
+      var view = statePair[0];
+      var setView = statePair[1];
+
+      function patch(next) {
+        setView(function (prev) {
+          var out = {};
+          for (var k in prev) out[k] = prev[k];
+          for (var j in next) out[j] = next[j];
+          return out;
+        });
+      }
+
+      function sessionInfo() {
+        return currentSession();
+      }
+
+      react.useEffect(function () {
+        var alive = true;
+        var session = sessionInfo();
+        var sid = session && typeof session.id === 'string' ? session.id : '';
+        var url = STYLE_API + (sid === '' ? '' : '?session=' + encodeURIComponent(sid));
+        fetch(url, { headers: { accept: 'application/json' } })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!alive) return;
+            if (!data || data.ok !== true) throw new Error((data && data.error) || t('styleFailed'));
+            patch({
+              loading: false,
+              styles: Array.isArray(data.styles) ? data.styles : [],
+              style: String(data.style || ''),
+              defaultStyle: String(data.default || ''),
+              error: ''
+            });
+          })
+          .catch(function (err) { if (alive) patch({ loading: false, error: String((err && err.message) || err) }); });
+        return function () { alive = false; };
+      }, []);
+
+      function choose(event) {
+        var id = String((event && event.target && event.target.value) || '');
+        if (!id || view.busy) return;
+        var session = sessionInfo();
+        var sid = session && typeof session.id === 'string' ? session.id : '';
+        var blank = session && session.blank === true;
+        var body = (sid === '' || blank) ? { defaultStyle: id } : { session: sid, style: id };
+        patch({ busy: true, error: '' });
+        fetch(STYLE_API, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(body)
+        })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data || data.ok !== true) throw new Error((data && data.error) || t('styleFailed'));
+            patch({
+              busy: false,
+              style: String(data.style || id),
+              defaultStyle: String(data.default || view.defaultStyle),
+              styles: Array.isArray(data.styles) ? data.styles : view.styles
+            });
+          })
+          .catch(function (err) { patch({ busy: false, error: String((err && err.message) || err) }); });
+      }
+
+      var selectStyle = {
+        minWidth: '180px',
+        padding: '6px 10px',
+        borderRadius: '8px',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        background: 'var(--dsw-alias-bg-base)',
+        color: 'var(--dsw-alias-label-primary)',
+        fontSize: '13px',
+        lineHeight: '20px'
+      };
+
+      var children = [
+        react.createElement('div', { key: 'text', style: rowTextStyle },
+          react.createElement('div', { style: titleStyle }, t('styleTitle')),
+          react.createElement('div', { style: descStyle }, t('styleDesc')),
+          react.createElement('div', { style: descStyle },
+            view.loading
+              ? t('styleLoading')
+              : t('styleCurrent') + '：' + ((view.styles.find(function (s) { return s.id === view.style; }) || {}).label || view.style || '—')
+                + (view.defaultStyle ? '　' + t('styleDefault') + '：' + ((view.styles.find(function (s) { return s.id === view.defaultStyle; }) || {}).label || view.defaultStyle) : '')
+          ),
+          view.error ? react.createElement('div', { style: errorStyle }, view.error) : null
+        ),
+        react.createElement('select', {
+          key: 'select',
+          style: selectStyle,
+          value: view.style || '',
+          disabled: view.loading || view.busy || view.styles.length === 0,
+          onChange: choose
+        }, view.styles.length === 0
+          ? [react.createElement('option', { key: 'none', value: '' }, t('styleLoading'))]
+          : view.styles.map(function (item) {
+            return react.createElement('option', { key: item.id, value: item.id }, item.label);
+          }))
+      ];
+      return react.createElement('div', { style: rowStyle }, children);
+    }
+
+    /**
      * 设置行：手动检查更新。
      *
      * 只做「查」和「显示」，不自动安装：本插件用 link: 安装在本地仓库里，
@@ -928,6 +1065,12 @@ window.__ModuleLoader__.load({
             trailblazerOn: '已开启：这场戏里你就是开拓者 —— 她认得你，不会问「你是谁」。',
             trailblazerOff: '关闭：不预设身份，她按你说的来（说自己是别人也照办）。',
             addressOff: '留空，用昵称：',
+            styleTitle: '表达风格',
+            styleDesc: '只影响当前会话的说话方式（措辞与采样温度），不改人设本身。工作模式不注入风格。',
+            styleCurrent: '当前会话',
+            styleDefault: '新会话默认',
+            styleLoading: '正在读取…',
+            styleFailed: '读取风格失败',
             updateTitle: '检查更新',
             updateDesc: '只查询 GitHub 上的最新 Release，不会自动安装；更新方式是在仓库目录里 git pull。',
             updateCurrent: '当前版本',
@@ -950,6 +1093,12 @@ window.__ModuleLoader__.load({
             trailblazerOn: 'On: in this role-play you are the Trailblazer; she knows you and will not ask who you are.',
             trailblazerOff: 'Off: no assumed identity; she follows whatever you say.',
             addressOff: 'Empty — using your nickname: ',
+            styleTitle: 'Expression style',
+            styleDesc: 'Affects how the current session speaks (wording and sampling temperature), not the persona. Work mode never receives a style.',
+            styleCurrent: 'This session',
+            styleDefault: 'Default for new sessions',
+            styleLoading: 'Loading…',
+            styleFailed: 'Could not load styles',
             updateTitle: 'Check for updates',
             updateDesc: 'Queries the latest GitHub Release only; nothing is installed automatically. Update with git pull in the repo directory.',
             updateCurrent: 'Current version',
@@ -967,6 +1116,13 @@ window.__ModuleLoader__.load({
        * 编辑按钮：先抓住会话服务，再挂 DOM 观察者。
        * 放在 ctx.effect 里返回清理函数 —— 插件被热替换 / 禁用时把观察者摘掉。
        */
+      ctx.inject(['uiWorkspace'], function (scope) {
+        workspaceRef = scope.uiWorkspace || null;
+        return function () {
+          workspaceRef = null;
+        };
+      });
+
       ctx.effect(function () {
         sessionsScope = { sessions: ctx.sessions };
         watchEditDom();
@@ -982,6 +1138,16 @@ window.__ModuleLoader__.load({
           }
         };
       }, 'dsh-cyrene: edit button');
+
+      /* 表达风格：放在最前（先定"怎么说"，再定"怎么叫"、"怎么演"）。 */
+      ctx.slots.inject('settings.general.item', function () {
+        return ctx.slots.register({
+          name: 'settings.general.item',
+          id: 'cyrene-style',
+          order: 43,
+          locale: NS
+        }, StyleRow);
+      });
 
       /* 称呼偏好：排在角色扮演开关之前（先定"怎么叫"，再定"怎么演"）。 */
       ctx.slots.inject('settings.general.item', function () {

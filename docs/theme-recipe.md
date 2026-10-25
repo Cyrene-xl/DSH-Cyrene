@@ -125,7 +125,8 @@ dsh plugin --profile <你的 profile> add dsh-550c-boot
 
 | 项 | 插件 | 存在哪 | 换端口 / 升级会丢吗 |
 |---|---|---|---|
-| 品牌字、新会话标题、输入框文案、权限名、风格按钮 | `dsha-brand-rename` | `~/.dsh/dsha-brand-rename.json` 的 `view` 字段（宿主持久化） | **不会**（跟随 `~/.dsh` 备份） |
+| 品牌字、新会话标题、输入框文案、权限名 | `dsha-brand-rename` | `~/.dsh/dsha-brand-rename.json` 的 `view` 字段（宿主持久化） | **不会**（跟随 `~/.dsh` 备份） |
+| 表达风格（六档 + 温度） | **dsh-cyrene 自带**（设置 → 通用 → 表达风格；`/style` 命令同样可用） | `~/.dsh/cyrene-style.json` | **不会** |
 | 吉祥物图片 / 大小 / 位置 | `dsha-hero-mascot` | 浏览器 `localStorage`（`dsha-hero-mascot:view`） | **会** —— localStorage 按 origin 隔离，换端口或换包名后要重新上传 |
 | 启动动画（视频 / CSS） | `dsh-custom-splash` | `~/.dsh/dsh-custom-splash.json` + `~/.dsh/startup-video/boot.mp4` | **不会**（宿主文件） |
 | 启动动画（550C） | `dsh-550c-boot` | 设置页 → 550C；播放模式与曲库存在浏览器 localStorage | 模式/曲库**会**丢；片头本身随插件 |

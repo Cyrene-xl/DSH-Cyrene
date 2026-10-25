@@ -10,10 +10,19 @@
  */
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SCENE_STORE, readState, writeState } from './scene.js';
 import { DEFAULT_NICKNAME, loadProfile, sanitize, saveField } from './nickname.js';
+import {
+  STYLES,
+  readState as readStyleState,
+  writeState as writeStyleState,
+  resolveStyle,
+  labelOf,
+  chooseStyle
+} from './style.js';
 
 /** 插件 id（与 package.json 的 dsh.id、cordis.patch.yml 的条目 id 保持一致）。 */
 export const name = 'dsh-cyrene';
@@ -194,6 +203,104 @@ export async function handleUpdateApi(req, res) {
     });
   }
 }
+
+/** 表达风格状态文件（style.js 读写的同一份）。 */
+const STYLE_STORE = join(dirname(SCENE_STORE), 'cyrene-style.json');
+
+/** 给浏览器半边的档位列表。 */
+function styleListOf(state) {
+  return Object.keys(STYLES).map((id) => ({
+    id,
+    label: labelOf(state, id),
+    temperature: STYLES[id].temperature
+  }));
+}
+
+/**
+ * `/cyrene-style-api`：读 / 切换表达风格。
+ *
+ * 以前这个路由挂在 dsha-brand-rename 里（还硬编码了 `/root/dsh-cyrene/style.js`），
+ * 换台机器就找不到。现在由 dsh-cyrene 自己提供 —— 装了本插件就有，
+ * brand-rename 的风格按钮会直接用这个接口。
+ *
+ * POST 支持三种意图（按顺序判断）：
+ *   - `{ customTier }`：只改「自定义档」的强度（1 / 2）；
+ *   - `{ defaultStyle }`：改全局兜底档（没有会话时）；
+ *   - `{ session, style }`：只改这个会话的档位。
+ */
+export async function handleStyleApi(req, res) {
+  try {
+    if (req.method === 'GET') {
+      const url = new URL(req.url, 'http://localhost');
+      const session = String(url.searchParams.get('session') || '');
+      const state = readStyleState(STYLE_STORE);
+      json(res, {
+        ok: true,
+        session,
+        style: resolveStyle(state, session),
+        default: state.default,
+        customTier: state.customTier === 2 ? 2 : 1,
+        styles: styleListOf(state)
+      });
+      return;
+    }
+    if (req.method !== 'POST') {
+      json(res, { ok: false, error: '只支持 GET / POST' }, 405);
+      return;
+    }
+    const raw = await readBody(req);
+    let payload = {};
+    try {
+      payload = raw ? JSON.parse(raw) : {};
+    } catch {
+      json(res, { ok: false, error: '请求体不是 JSON' }, 400);
+      return;
+    }
+    const state = readStyleState(STYLE_STORE);
+
+    if (payload.customTier !== undefined) {
+      const tier = Number(payload.customTier) === 2 ? 2 : 1;
+      if (!writeStyleState(STYLE_STORE, { ...state, customTier: tier })) {
+        json(res, { ok: false, error: '写入 ' + STYLE_STORE + ' 失败' }, 500);
+        return;
+      }
+      json(res, { ok: true, customTier: tier, styles: styleListOf(state) });
+      return;
+    }
+
+    if (typeof payload.defaultStyle === 'string' && payload.defaultStyle !== '') {
+      const wanted = payload.defaultStyle;
+      if (!Object.prototype.hasOwnProperty.call(STYLES, wanted)) {
+        json(res, { ok: false, error: '没有这个风格：' + wanted }, 400);
+        return;
+      }
+      writeStyleState(STYLE_STORE, { ...state, default: wanted });
+      json(res, { ok: true, style: wanted, default: wanted, styles: styleListOf(state) });
+      return;
+    }
+
+    const session = String(payload.session || '');
+    const style = String(payload.style || '');
+    if (!Object.prototype.hasOwnProperty.call(STYLES, style)) {
+      json(res, { ok: false, error: '没有这个风格：' + style }, 400);
+      return;
+    }
+    if (session === '') {
+      json(res, { ok: false, error: '缺少会话 id' }, 400);
+      return;
+    }
+    if (!writeStyleState(STYLE_STORE, chooseStyle(state, session, style, Date.now()))) {
+      json(res, { ok: false, error: '写入 ' + STYLE_STORE + ' 失败' }, 500);
+      return;
+    }
+    json(res, { ok: true, session, style, styles: styleListOf(state) });
+  } catch (error) {
+    json(res, { ok: false, error: String((error && error.message) || error) }, 500);
+  }
+}
+
+/** 设置界面用的接口路径：表达风格。 */
+export const STYLE_API_PATH = '/cyrene-style-api';
 
 /** 设置界面用的接口路径：手动检查更新。 */
 export const UPDATE_API_PATH = '/cyrene-update-api';
@@ -601,6 +708,10 @@ export function apply(ctx) {
     scope.effect(
       () => scope.webServer.register({ kind: 'exact', path: UPDATE_API_PATH, handler: handleUpdateApi }),
       'dsh-cyrene: /cyrene-update-api'
+    );
+    scope.effect(
+      () => scope.webServer.register({ kind: 'exact', path: STYLE_API_PATH, handler: handleStyleApi }),
+      'dsh-cyrene: /cyrene-style-api'
     );
     scope.effect(
       () => scope.webServer.register({ kind: 'exact', path: NICKNAME_API_PATH, handler: handleNicknameApi }),

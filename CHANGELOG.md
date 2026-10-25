@@ -4,6 +4,19 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.7.7] — 2026-10-25
+
+表达风格切换从「美化插件」迁进本包。
+
+- 宿主新增 `/cyrene-style-api`（读/写 `cyrene-style.json`；GET 列出六档、
+  POST 支持 `{defaultStyle}` / `{session,style}` / `{customTier}`），
+  不再依赖 `dsha-brand-rename` 里那份硬编码 `/root/dsh-cyrene/style.js` 的实现；
+- 设置 → 通用新增「表达风格」下拉：改当前会话；空白会话里选会同时写成新会话默认；
+- `dsha-brand-rename` 里的同名路由已移除（它的 chip 直接复用新接口）；
+- 顺带修了 0.2.x 下 `currentSession()` 读不到 `snapshot.current`（会让编辑铅笔
+  与风格行拿不到会话），改用 `uiWorkspace.mainReference`/最近空白会话兜底；
+- 新增 `tests/style-api.test.mjs`，测试 247 条全过。
+
 ## [0.7.6] — 2026-10-25
 
 设置 → 通用新增「检查更新」（手动）。

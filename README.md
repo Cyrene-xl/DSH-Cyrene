@@ -527,6 +527,11 @@ npm run wb:audit -- --strict  # 有问题时退出码 1（适合预提交；CI �
 | `sweet` | `styles/05_sweet.md` | 0.82 |
 | `custom` | `<DSH_HOME>/cyrene-style-custom.md` | 可选，见下 |
 
+除了 `/style` 命令，**设置 → 通用 → 表达风格**里也能直接选：下拉会列出六个档位，
+改的同样是当前会话；在空白会话里选会顺手写成「新会话默认」（0.2.x 开始对话时会换
+会话 id，只写 per-session 会落到一个随后不用的 id 上）。这个接口
+（`/cyrene-style-api`）现在由 dsh-cyrene 宿主自己提供，不再依赖哪个美化插件。
+
 几个要点：
 
 - **按会话生效**：选择存在 `<DSH_HOME>/cyrene-style.json`（最多留 50 条会话记录），
@@ -657,7 +662,7 @@ npm run wb:audit -- --strict  # 有问题时退出码 1（适合预提交；CI �
 - 所以有**两道保险**：预设层面工作模式不挂这个插件；`style.js` 的
   `DISABLED_PRESETS` 里也写着 `cyrene-work` —— 万一将来被误挂进去，运行时会读会话的
   `agent-preset/selected` 事件，自己拒掉（风格文本和温度**都不动**）；
-- 新会话页的风格按钮在工作模式下**不显示**，避免"点了没反应"的假入口。
+- 设置里的「表达风格」行在工作模式下照常显示，但**选了也不会注入**（`style.js` 的 `DISABLED_PRESETS` 会拒掉）；新会话页的风格按钮则直接不显示，避免假入口。
 
 要改这条约定，得同时改两处并跑测试：`preset/cyrene-work/agent.cordis.yml`（别挂进来）、
 `style.js` 的 `DISABLED_PRESETS`。`tests/preset.test.mjs` 与
@@ -807,7 +812,7 @@ DSH 0.2.x 上需要 `dsh >= 0.2.0-rc.1`。
 
 | 插件 | 作用 | 设置位置 |
 |---|---|---|
-| `dsha-brand-rename` | 品牌字、新会话标题、输入框文案、权限名、风格按钮 | `~/.dsh/dsha-brand-rename.json`（`view` 字段，宿主持久化，换端口不丢） |
+| `dsha-brand-rename` | 品牌字、新会话标题、输入框文案、权限名（风格按钮只是可选入口，接口在 dsh-cyrene） | `~/.dsh/dsha-brand-rename.json`（`view` 字段，宿主持久化，换端口不丢） |
 | `dsha-hero-mascot` | 新会话页左侧吉祥物图片与位置 | 浏览器 `localStorage`（`dsha-hero-mascot:view`）—— **按 origin 隔离，换端口/换包名会丢** |
 | `dsha-pet-button` | 左上角按钮唤起 Live2D 桌宠，延时切回 DSHA | `~/.dsh/dsha-pet-button.json`（`returnPackage` 已指向新包名 `dsh.android.client`） |
 
