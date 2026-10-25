@@ -171,6 +171,15 @@ test('注入：输出格式规范 —— 描述进括号、台词不进', () => 
   assert.ok(example.includes('（把茶杯推到你面前'), '动作用括号')
 })
 
+test('注入：剧情推进是硬性要求（每轮至少一小步 + 主动递钩子）', () => {
+  const text = sceneBlock(true)
+  assert.ok(text.includes('剧情推进（硬性）'), '推进段必须存在')
+  assert.ok(text.includes('至少前进一小步'), '每轮要有可感知的变化')
+  assert.ok(text.includes('主动递出下一轮的钩子'), '不能描述完就停')
+  assert.ok(text.includes('你可以主动行动'), '允许她主动带节奏')
+  assert.ok(text.includes('对方在带方向时就跟着推进'), '用户带方向时不要抢主导权')
+})
+
 test('注入：默认不预设身份，开了才有「开拓者」那段', () => {
   const plain = sceneBlock(true)
   assert.ok(!plain.includes('开拓者'), '不开启时一个字都不提身份')
