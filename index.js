@@ -110,6 +110,93 @@ export async function handleNicknameApi(req, res) {
   }
 }
 
+/** 更新检查的 GitHub 仓库（可用环境变量覆盖，便于 fork）。 */
+const UPDATE_REPO = process.env.DSH_CYRENE_UPDATE_REPO || 'Cyrene-xl/DSH-Cyrene';
+/** 更新检查缓存：一天。手动点一次就够，别每次都打 GitHub。 */
+const UPDATE_CACHE_MS = 24 * 60 * 60 * 1000;
+/** 内存缓存：{ at, etag, payload }。进程重启就重查。 */
+let updateCache = null;
+
+/**
+ * 比较两个语义化版本（忽略 `v` 前缀与预发布后缀）。
+ * @param a - 版本 A。
+ * @param b - 版本 B。
+ * @returns A>B 返回 1，A<B 返回 -1，相等返回 0。
+ */
+export function compareSemver(a, b) {
+  const core = (v) => String(v || '').trim().replace(/^v/i, '').split('-')[0].split('+')[0]
+    .split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const x = core(a);
+  const y = core(b);
+  for (let i = 0; i < 3; i += 1) {
+    if ((x[i] || 0) > (y[i] || 0)) return 1;
+    if ((x[i] || 0) < (y[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+/**
+ * `/cyrene-update-api`：手动检查 GitHub 上的最新 Release。
+ *
+ * - `?meta=1`：只回当前本地版本，不联网（设置行初始化用）；
+ * - 默认/`?force=1`：查 GitHub releases/latest，结果缓存 24 小时（带 ETag）；
+ * - 网络失败也回 200 + `ok:false`，设置行显示原因，不抛错。
+ */
+export async function handleUpdateApi(req, res) {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    if (url.searchParams.get('meta') === '1') {
+      json(res, { ok: true, current: version });
+      return;
+    }
+    const force = url.searchParams.get('force') === '1';
+    const now = Date.now();
+    if (!force && updateCache !== null && now - updateCache.at < UPDATE_CACHE_MS) {
+      json(res, { ok: true, ...updateCache.payload, cached: true });
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    let response;
+    try {
+      const headers = { accept: 'application/vnd.github+json', 'user-agent': 'dsh-cyrene-update-check' };
+      if (updateCache?.etag) headers['if-none-match'] = updateCache.etag;
+      response = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+        headers,
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (response.status === 304 && updateCache !== null) {
+      updateCache.at = now;
+      json(res, { ok: true, ...updateCache.payload, cached: true });
+      return;
+    }
+    if (!response.ok) throw new Error(`GitHub 返回 ${response.status}`);
+    const data = await response.json();
+    const latest = String(data.tag_name || '').replace(/^v/i, '');
+    const payload = {
+      current: version,
+      latest,
+      hasUpdate: latest !== '' && compareSemver(latest, version) > 0,
+      url: typeof data.html_url === 'string' ? data.html_url : `https://github.com/${UPDATE_REPO}/releases`,
+      checkedAt: new Date(now).toISOString()
+    };
+    updateCache = { at: now, etag: response.headers.get('etag') || null, payload };
+    json(res, { ok: true, ...payload, cached: false });
+  } catch (error) {
+    json(res, {
+      ok: false,
+      current: version,
+      error: String((error && error.message) || error),
+      url: `https://github.com/${UPDATE_REPO}/releases`
+    });
+  }
+}
+
+/** 设置界面用的接口路径：手动检查更新。 */
+export const UPDATE_API_PATH = '/cyrene-update-api';
 /** 设置界面用的接口路径：角色扮演模式开关。 */
 export const SCENE_API_PATH = '/cyrene-scene-api';
 /** 设置界面用的接口路径：称呼偏好 / 昵称。 */
@@ -510,6 +597,10 @@ export function apply(ctx) {
     scope.effect(
       () => scope.webServer.register({ kind: 'exact', path: SCENE_API_PATH, handler: handleSceneApi }),
       'dsh-cyrene: /cyrene-scene-api'
+    );
+    scope.effect(
+      () => scope.webServer.register({ kind: 'exact', path: UPDATE_API_PATH, handler: handleUpdateApi }),
+      'dsh-cyrene: /cyrene-update-api'
     );
     scope.effect(
       () => scope.webServer.register({ kind: 'exact', path: NICKNAME_API_PATH, handler: handleNicknameApi }),

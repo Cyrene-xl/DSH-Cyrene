@@ -47,6 +47,8 @@ window.__ModuleLoader__.load({
     var NS = 'dsh-cyrene';
     /** 主机接口：角色扮演模式开关。 */
     var API = '/cyrene-scene-api';
+    /** 主机接口：手动检查更新（GitHub releases/latest）。 */
+    var UPDATE_API = '/cyrene-update-api';
     /** 主机接口：称呼偏好 / 昵称。 */
     var ADDRESS_API = '/cyrene-nickname-api';
     /** 主机接口：编辑最后一条用户消息。 */
@@ -794,6 +796,116 @@ window.__ModuleLoader__.load({
       return react.createElement('div', null, children);
     }
 
+    /**
+     * 设置行：手动检查更新。
+     *
+     * 只做「查」和「显示」，不自动安装：本插件用 link: 安装在本地仓库里，
+     * 更新就是去那个目录 git pull。查询走宿主 `/cyrene-update-api`，
+     * 宿主有 24 小时缓存；本行初始化时只取本地版本，不联网。
+     * @param props - 槽位传入的 `{ t }`。
+     * @returns React 元素。
+     */
+    function UpdateRow(props) {
+      var t = props && typeof props.t === 'function' ? props.t : function (key) { return key; };
+      var infoPair = react.useState({
+        current: '', latest: '', hasUpdate: false, url: '', busy: false, error: '', checked: false
+      });
+      var info = infoPair[0];
+      var setInfo = infoPair[1];
+
+      function patch(next) {
+        setInfo(function (prev) {
+          var out = {};
+          for (var k in prev) out[k] = prev[k];
+          for (var j in next) out[j] = next[j];
+          return out;
+        });
+      }
+
+      react.useEffect(function () {
+        var alive = true;
+        fetch(UPDATE_API + '?meta=1', { headers: { accept: 'application/json' } })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (alive && data && data.ok === true) patch({ current: String(data.current || '') });
+          })
+          .catch(function () { /* 拿不到版本也不影响按钮 */ });
+        return function () { alive = false; };
+      }, []);
+
+      function check() {
+        if (info.busy) return;
+        patch({ busy: true, error: '', checked: false });
+        fetch(UPDATE_API + '?force=1', { headers: { accept: 'application/json' } })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data || data.ok !== true) throw new Error((data && data.error) || t('updateFailed'));
+            patch({
+              current: String(data.current || info.current),
+              latest: String(data.latest || ''),
+              hasUpdate: data.hasUpdate === true,
+              url: String(data.url || ''),
+              busy: false,
+              checked: true
+            });
+          })
+          .catch(function (err) {
+            patch({ busy: false, error: String((err && err.message) || err), checked: true });
+          });
+      }
+
+      var buttonStyle = {
+        flex: 'none',
+        padding: '6px 14px',
+        borderRadius: '999px',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-primary)',
+        fontSize: '12px',
+        lineHeight: '18px',
+        cursor: info.busy ? 'default' : 'pointer',
+        opacity: info.busy ? 0.6 : 1
+      };
+
+      var children = [
+        react.createElement('div', { key: 'text', style: rowTextStyle },
+          react.createElement('div', { style: titleStyle }, t('updateTitle')),
+          react.createElement('div', { style: descStyle }, t('updateDesc')),
+          react.createElement('div', { style: descStyle },
+            (info.current ? t('updateCurrent') + ' v' + info.current + '　' : '') +
+            t('updateManualHint')
+          ),
+          info.checked
+            ? react.createElement('div', {
+              key: 'result',
+              style: info.error ? errorStyle : descStyle
+            }, info.error
+              ? t('updateFailed') + '：' + info.error
+              : info.hasUpdate
+                ? t('updateAvailable') + ' v' + info.latest + (info.url ? '　' : '')
+                : t('updateLatest'))
+            : null,
+          info.checked && info.hasUpdate && info.url
+            ? react.createElement('a', {
+              key: 'link',
+              href: info.url,
+              target: '_blank',
+              rel: 'noreferrer',
+              style: { color: 'var(--dsw-alias-state-business-primary)', fontSize: '12px', lineHeight: '18px' }
+            }, info.url)
+            : null
+        ),
+        react.createElement('button', {
+          key: 'check',
+          type: 'button',
+          style: buttonStyle,
+          disabled: info.busy,
+          onClick: check
+        }, info.busy ? t('updateChecking') : t('updateCheck'))
+      ];
+      return react.createElement('div', { style: rowStyle }, children);
+    }
+
     /** 需要的主机侧服务：槽位、文案、会话（编辑按钮要靠它认当前会话）。 */
     var inject = ['slots', 'locale', 'sessions'];
 
@@ -816,6 +928,15 @@ window.__ModuleLoader__.load({
             trailblazerOn: '已开启：这场戏里你就是开拓者 —— 她认得你，不会问「你是谁」。',
             trailblazerOff: '关闭：不预设身份，她按你说的来（说自己是别人也照办）。',
             addressOff: '留空，用昵称：',
+            updateTitle: '检查更新',
+            updateDesc: '只查询 GitHub 上的最新 Release，不会自动安装；更新方式是在仓库目录里 git pull。',
+            updateCurrent: '当前版本',
+            updateManualHint: '点右侧按钮手动检查。',
+            updateCheck: '检查更新',
+            updateChecking: '检查中…',
+            updateLatest: '已是最新版本。',
+            updateAvailable: '有新版',
+            updateFailed: '检查失败',
           },
           en: {
             title: 'Role-play mode',
@@ -829,6 +950,15 @@ window.__ModuleLoader__.load({
             trailblazerOn: 'On: in this role-play you are the Trailblazer; she knows you and will not ask who you are.',
             trailblazerOff: 'Off: no assumed identity; she follows whatever you say.',
             addressOff: 'Empty — using your nickname: ',
+            updateTitle: 'Check for updates',
+            updateDesc: 'Queries the latest GitHub Release only; nothing is installed automatically. Update with git pull in the repo directory.',
+            updateCurrent: 'Current version',
+            updateManualHint: 'Use the button to check manually.',
+            updateCheck: 'Check',
+            updateChecking: 'Checking…',
+            updateLatest: 'You are up to date.',
+            updateAvailable: 'New version',
+            updateFailed: 'Check failed',
           }
         });
       }, 'dsh-cyrene: locale');
@@ -870,6 +1000,15 @@ window.__ModuleLoader__.load({
           order: 45,
           locale: NS
         }, RoleplayRow);
+      });
+
+      ctx.slots.inject('settings.general.item', function () {
+        return ctx.slots.register({
+          name: 'settings.general.item',
+          id: 'cyrene-update',
+          order: 46,
+          locale: NS
+        }, UpdateRow);
       });
     }
 

@@ -4,6 +4,15 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.7.6] — 2026-10-25
+
+设置 → 通用新增「检查更新」（手动）。
+
+- 点一下查询 GitHub 的 `releases/latest`，显示当前版本 / 最新版本 / 是否落后 / Release 链接；
+- 宿主侧 24 小时缓存 + ETag，6 秒超时；失败只显示原因，不影响设置页；
+- **只查不装**：本插件是 `link:` 安装在本地仓库，更新仍是 `git pull`；
+- 新增 `/cyrene-update-api`（`?meta=1` 只回本地版本、不联网）。
+
 ## [0.7.5] — 2026-10-25
 
 角色扮演模式：剧情推进变成硬性要求。

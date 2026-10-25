@@ -113,7 +113,7 @@ dsh plugin --profile <你的 profile> add link:/你的路径/DSH-Cyrene
 
 `cordis.patch.yml` 是纯 `insert` 形式，不往机器上写任何硬编码路径。
 
-装好、重启之后，**设置 → 通用**里会多两行：「称呼偏好」和「角色扮演模式」
+装好、重启之后，**设置 → 通用**里会多三行：「称呼偏好」「角色扮演模式」和「检查更新」
 （本包的浏览器半边 `client.js` 渲染；主机半边 `index.js` 提供 `/cyrene-nickname-api`
 与 `/cyrene-scene-api`）。这两行依赖 `dsh plugin add` 这一步 —— 只拷预设、没装插件本体
 的部署里，预设照常能跑，只是设置页没有这两行：直接改 `<DSH_HOME>/cyrene-scene.json`
