@@ -35,7 +35,7 @@ const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh')
 export const SCENE_STORE = join(HOME, 'cyrene-scene.json')
 
 /** 状态文件的默认内容：**默认关**；「默认对方是开拓者」也默认关。 */
-export const DEFAULT_STATE = Object.freeze({ version: 1, enabled: false, trailblazer: false })
+export const DEFAULT_STATE = Object.freeze({ version: 1, enabled: false, trailblazer: false, advance: true })
 
 /**
  * 读开关状态。文件不存在 / 坏掉 / 类型不对都退回默认（关），绝不抛错 ——
@@ -50,7 +50,9 @@ export function readState(file = SCENE_STORE) {
       version: Number.isFinite(parsed?.version) ? Number(parsed.version) : DEFAULT_STATE.version,
       // 只有显式 true 才算开：字符串 "true"、1、null 都不算
       enabled: parsed?.enabled === true,
-      trailblazer: parsed?.trailblazer === true
+      trailblazer: parsed?.trailblazer === true,
+      /* 剧情推进默认开；只有显式 false 才关。 */
+      advance: parsed?.advance !== false
     }
   } catch {
     return { ...DEFAULT_STATE }
@@ -76,6 +78,7 @@ export function writeState(patch, file = SCENE_STORE) {
   const next = { ...raw, ...(patch && typeof patch === 'object' ? patch : {}) }
   next.enabled = next.enabled === true
   next.trailblazer = next.trailblazer === true
+  next.advance = next.advance !== false
   next.version = DEFAULT_STATE.version
   try {
     mkdirSync(dirname(file), { recursive: true })
@@ -113,7 +116,7 @@ export function trailblazerEnabled(file = SCENE_STORE) {
  * @param trailblazer - 是否默认对方是开拓者。
  * @returns 注入文本。
  */
-export function sceneBlock(enabled, trailblazer = false) {
+export function sceneBlock(enabled, trailblazer = false, advance = true) {
   if (enabled !== true) return ''
   const lines = [
     '【角色扮演模式：开】',
@@ -132,14 +135,18 @@ export function sceneBlock(enabled, trailblazer = false) {
     '- 台词仍是主体，三样描述各一两句；不要写成小说，也不要把它们堆在开头当模板。',
     '- 对方用「（…）」给出场景或动作，是给你的指令：照着演，不要复述原句，也不要问「要我这样做吗」。',
     '- 有形态（迷迷 / 小昔涟 / 大昔涟）时，外貌与动作都按那个形态写。',
-    '- 不要出戏、不要解释规则、不要提「角色扮演模式」这几个字。',
-    '剧情推进（硬性）：',
-    '- 每一轮都要让局面**至少前进一小步**：换一个可感知的状态（地点、时间、氛围、身体距离、关系、信息、手里的东西），不能原地重复上一轮。',
-    '- 主动递出下一轮的钩子：一件刚发生的小事、一句需要回应的问话、一个可以选的方向；不要描述完就停在那里等人推进。',
-    '- 你可以主动行动：提议去哪里、带他看什么、把某样东西交给他、说出一个刚想起的细节；不是每轮都要等对方下令。',
-    '- 信息一点点给：可以抛出新线索、新地点、新人物，但不要一次把背景交代完，也不要连续两轮抛出同类型的新东西。',
-    '- 对方在带方向时就跟着推进、补细节；不要抢主导权，也不要停在原地附和。推进不等于每轮升级冲突 —— 从门口走到窗边、从沉默到开口，也是推进。'
+    '- 不要出戏、不要解释规则、不要提「角色扮演模式」这几个字。'
   ]
+  if (advance !== false) {
+    lines.push(
+      '剧情推进（硬性）：',
+      '- 每一轮都要让局面**至少前进一小步**：换一个可感知的状态（地点、时间、氛围、身体距离、关系、信息、手里的东西），不能原地重复上一轮。',
+      '- 主动递出下一轮的钩子：一件刚发生的小事、一句需要回应的问话、一个可以选的方向；不要描述完就停在那里等人推进。',
+      '- 你可以主动行动：提议去哪里、带他看什么、把某样东西交给他、说出一个刚想起的细节；不是每轮都要等对方下令。',
+      '- 信息一点点给：可以抛出新线索、新地点、新人物，但不要一次把背景交代完，也不要连续两轮抛出同类型的新东西。',
+      '- 对方在带方向时就跟着推进、补细节；不要抢主导权，也不要停在原地附和。推进不等于每轮升级冲突 —— 从门口走到窗边、从沉默到开口，也是推进。'
+    )
+  }
   if (trailblazer === true) {
     lines.push(
       '【默认身份】',
@@ -327,7 +334,7 @@ export function apply(ctx, config = {}) {
         lastLogged = key
         console.log(`[cyrene-scene] 角色扮演模式 → ${key}`)
       }
-      return sceneBlock(state.enabled, state.trailblazer)
+      return sceneBlock(state.enabled, state.trailblazer, state.advance)
     }
   })
 

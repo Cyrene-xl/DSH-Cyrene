@@ -652,7 +652,7 @@ export async function handleSceneApi(req, res) {
   try {
     if (req.method === 'GET') {
       const state = readState();
-      json(res, { ok: true, enabled: state.enabled, trailblazer: state.trailblazer, path: SCENE_STORE });
+      json(res, { ok: true, enabled: state.enabled, trailblazer: state.trailblazer, advance: state.advance, path: SCENE_STORE });
       return;
     }
     if (req.method !== 'POST') {
@@ -667,13 +667,14 @@ export async function handleSceneApi(req, res) {
       json(res, { ok: false, error: '请求体不是 JSON' }, 400);
       return;
     }
-    // 两个开关（角色扮演模式 / 默认对方是开拓者），各自独立、都只接受真正的布尔值：
-    // 设置界面传 "false" 这种字符串是 bug，不该被静默当成开。
+    // 三个开关（角色扮演模式 / 默认对方是开拓者 / 剧情推进），各自独立、
+    // 都只接受真正的布尔值：设置界面传 "false" 这种字符串是 bug，不该被静默当成开。
     const patch = {};
     if (typeof payload.enabled === 'boolean') patch.enabled = payload.enabled;
     if (typeof payload.trailblazer === 'boolean') patch.trailblazer = payload.trailblazer;
+    if (typeof payload.advance === 'boolean') patch.advance = payload.advance;
     if (Object.keys(patch).length === 0) {
-      json(res, { ok: false, error: 'enabled / trailblazer 至少给一个，且必须是 true / false' }, 400);
+      json(res, { ok: false, error: 'enabled / trailblazer / advance 至少给一个，且必须是 true / false' }, 400);
       return;
     }
     if (!writeState(patch)) {
@@ -681,7 +682,7 @@ export async function handleSceneApi(req, res) {
       return;
     }
     const state = readState();
-    json(res, { ok: true, enabled: state.enabled, trailblazer: state.trailblazer });
+    json(res, { ok: true, enabled: state.enabled, trailblazer: state.trailblazer, advance: state.advance });
   } catch (error) {
     json(res, { ok: false, error: String(error?.message ?? error) }, 400);
   }

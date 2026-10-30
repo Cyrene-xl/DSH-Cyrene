@@ -144,7 +144,7 @@ window.__ModuleLoader__.load({
         .then(function (res) { return res.json(); })
         .then(function (body) {
           if (!body || body.ok !== true) throw new Error((body && body.error) || '读取失败');
-          return { enabled: body.enabled === true, trailblazer: body.trailblazer === true };
+          return { enabled: body.enabled === true, trailblazer: body.trailblazer === true, advance: body.advance !== false };
         });
     }
 
@@ -162,7 +162,7 @@ window.__ModuleLoader__.load({
         .then(function (res) { return res.json(); })
         .then(function (body) {
           if (!body || body.ok !== true) throw new Error((body && body.error) || '保存失败');
-          return { enabled: body.enabled === true, trailblazer: body.trailblazer === true };
+          return { enabled: body.enabled === true, trailblazer: body.trailblazer === true, advance: body.advance !== false };
         });
     }
 
@@ -716,6 +716,9 @@ window.__ModuleLoader__.load({
       var trailPair = react.useState(false);
       var trailblazer = trailPair[0];
       var setTrailblazer = trailPair[1];
+      var advancePair = react.useState(true);
+      var advance = advancePair[0];
+      var setAdvance = advancePair[1];
       var busyPair = react.useState(false);
       var busy = busyPair[0];
       var setBusy = busyPair[1];
@@ -730,6 +733,7 @@ window.__ModuleLoader__.load({
             if (!alive) return;
             setEnabled(value.enabled);
             setTrailblazer(value.trailblazer);
+            setAdvance(value.advance !== false);
           })
           .catch(function (err) { if (alive) setError(String((err && err.message) || err)); });
         return function () { alive = false; };
@@ -744,6 +748,7 @@ window.__ModuleLoader__.load({
           .then(function (value) {
             setEnabled(value.enabled);
             setTrailblazer(value.trailblazer);
+            setAdvance(value.advance !== false);
           })
           .catch(function (err) { setError(String((err && err.message) || err)); })
           .then(function () { setBusy(false); });
@@ -758,12 +763,29 @@ window.__ModuleLoader__.load({
           .then(function (value) {
             setEnabled(value.enabled);
             setTrailblazer(value.trailblazer);
+            setAdvance(value.advance !== false);
+          })
+          .catch(function (err) { setError(String((err && err.message) || err)); })
+          .then(function () { setBusy(false); });
+      }
+
+      function toggleAdvance() {
+        if (busy || enabled !== true) return;
+        var next = !advance;
+        setBusy(true);
+        setError('');
+        saveEnabled({ advance: next })
+          .then(function (value) {
+            setEnabled(value.enabled);
+            setTrailblazer(value.trailblazer);
+            setAdvance(value.advance !== false);
           })
           .catch(function (err) { setError(String((err && err.message) || err)); })
           .then(function () { setBusy(false); });
       }
 
       var checked = enabled === true;
+      var advanceOn = advance !== false;
       var trailOn = trailblazer === true;
 
       function switchEl(ariaLabel, isOn, disabled, onClick) {
@@ -811,6 +833,17 @@ window.__ModuleLoader__.load({
             react.createElement('div', { style: descStyle }, trailOn ? t('trailblazerOn') : t('trailblazerOff'))
           ),
           switchEl(t('trailblazerTitle'), trailOn, busy, toggleTrailblazer)
+        ));
+        children.push(react.createElement(
+          'div',
+          { key: 'advance', style: Object.assign({}, rowStyle, { paddingLeft: '16px', borderBottom: 'none' }) },
+          react.createElement(
+            'div',
+            { style: rowTextStyle },
+            react.createElement('div', { style: titleStyle }, t('advanceTitle')),
+            react.createElement('div', { style: descStyle }, advanceOn ? t('advanceOn') : t('advanceOff'))
+          ),
+          switchEl(t('advanceTitle'), advanceOn, busy, toggleAdvance)
         ));
       }
 
@@ -1064,6 +1097,9 @@ window.__ModuleLoader__.load({
             trailblazerTitle: '默认对方是开拓者',
             trailblazerOn: '已开启：这场戏里你就是开拓者 —— 她认得你，不会问「你是谁」。',
             trailblazerOff: '关闭：不预设身份，她按你说的来（说自己是别人也照办）。',
+            advanceTitle: '剧情推进',
+            advanceOn: '已开启：每轮至少让局面前进一小步，并主动递出下一轮的钩子。',
+            advanceOff: '关闭：只写场景/动作/外貌，不强制推进，剧情节奏交给你。',
             addressOff: '留空，用昵称：',
             styleTitle: '表达风格',
             styleDesc: '只影响当前会话的说话方式（措辞与采样温度），不改人设本身。工作模式不注入风格。',
@@ -1092,6 +1128,9 @@ window.__ModuleLoader__.load({
             trailblazerTitle: 'Assume you are the Trailblazer',
             trailblazerOn: 'On: in this role-play you are the Trailblazer; she knows you and will not ask who you are.',
             trailblazerOff: 'Off: no assumed identity; she follows whatever you say.',
+            advanceTitle: 'Plot advancement',
+            advanceOn: 'On: every turn moves the situation at least one step and offers a hook for the next turn.',
+            advanceOff: 'Off: scene/action/appearance only; no forced advancement — you set the pace.',
             addressOff: 'Empty — using your nickname: ',
             styleTitle: 'Expression style',
             styleDesc: 'Affects how the current session speaks (wording and sampling temperature), not the persona. Work mode never receives a style.',

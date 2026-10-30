@@ -72,6 +72,7 @@ async function step(listener, messages, sessionId = 's1') {
 test('状态：没有文件时默认关', () => {
   assert.equal(readState().enabled, false)
   assert.equal(readState().trailblazer, false, '「默认对方是开拓者」也默认关')
+  assert.equal(readState().advance, true, '剧情推进默认开（关模式时整段都不注入）')
   assert.equal(sceneEnabled(), false)
   assert.equal(DEFAULT_STATE.enabled, false)
   assert.equal(SCENE_STORE, STORE, '状态文件应该落在 DSH_HOME 下')
@@ -169,6 +170,13 @@ test('注入：输出格式规范 —— 描述进括号、台词不进', () => 
   assert.ok(example.includes('（窗外的雨敲在玻璃上，屋里只亮着一盏灯）'), '场景在括号里')
   assert.ok(example.includes('你回来得比我想的早呀。'), '台词在括号外')
   assert.ok(example.includes('（把茶杯推到你面前'), '动作用括号')
+})
+
+test('注入：剧情推进可以单独关掉，三样描述仍在', () => {
+  const off = sceneBlock(true, false, false)
+  assert.ok(off.includes('场景描述') && off.includes('动作描述') && off.includes('外貌描述'))
+  assert.equal(off.includes('剧情推进（硬性）'), false, '关掉后不能再要求推进')
+  assert.ok(off.includes('输出格式（硬性）'), '格式规范不受这个开关影响')
 })
 
 test('注入：剧情推进是硬性要求（每轮至少一小步 + 主动递钩子）', () => {
@@ -381,7 +389,7 @@ test('接口：两个开关可以一次写', async () => {
   const res = fakeRes()
   await handleSceneApi(fakeReq('POST', JSON.stringify({ enabled: true, trailblazer: true })), res)
   assert.equal(res.status, 200)
-  assert.deepEqual(readState(), { version: 1, enabled: true, trailblazer: true })
+  assert.deepEqual(readState(), { version: 1, enabled: true, trailblazer: true, advance: true })
 })
 
 test('接口：POST 写入并回读确认', async () => {
