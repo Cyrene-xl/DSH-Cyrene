@@ -4,6 +4,17 @@
 `git log`（每条说明都写得比较长），已知的坑看 [`docs/pitfalls.md`](./docs/pitfalls.md)
 与 [`docs/windows.md`](./docs/windows.md)。
 
+## [0.7.9] — 2026-11-14
+
+Windows 上状态文件落盘失败（A1 修复，补丁版本）。
+
+- 新增 `paths.js`：`DSH_HOME` 优先；相对值 `resolve` 成绝对路径；否则
+  `HOME` → `USERPROFILE` → `os.homedir()`，最后拼 `.dsh`。
+- `style.js` / `scene.js` / `memory.js` / `nickname.js` / `worldbook/index.mjs`
+  统一改用 `dshHome()`，不再用 `process.env.HOME || '.'`（Windows 没有 `HOME`
+  时该表达式会变成相对路径 `.dsh`，写入失败被 `catch` 吞掉）。
+- 新增 `tests/paths.test.mjs`；测试 253 条全过。
+
 ## [0.7.8] — 2026-10-25
 
 角色扮演新增「剧情推进」开关（默认开）。

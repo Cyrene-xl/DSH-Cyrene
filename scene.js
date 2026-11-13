@@ -27,10 +27,11 @@
  * 取决于本轮文本，且与会话绑定。
  */
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dshHome } from './paths.js'
 import { dirname, join } from 'node:path'
 
 /** 跟其它 dsha-* 插件一样认 DSH_HOME。 */
-const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh')
+const HOME = dshHome()
 /** 开关状态文件。设置界面（client.js）与主机接口（index.js）读写的是同一份。 */
 export const SCENE_STORE = join(HOME, 'cyrene-scene.json')
 

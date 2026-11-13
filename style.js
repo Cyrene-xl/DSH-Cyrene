@@ -41,12 +41,12 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 
 import { readState as readSceneState } from './scene.js'
-import { homedir } from 'node:os'
+import { dshHome } from './paths.js'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh')
+const HOME = dshHome()
 
 /** 会话表最多留多少条，超出按时间淘汰（防止状态文件无限长）。 */
 const MAX_SESSIONS = 50

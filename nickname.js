@@ -40,9 +40,10 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { dshHome } from './paths.js';
 
 /** 认 DSH_HOME，跟预设安装位置同源。 */
-const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh')
+const HOME = dshHome();
 /** 称呼的存储位置。**与昵称插件共用同一个文件**（读-改-写，不冲掉它的字段）。 */
 const STORE = join(HOME, 'dsha-brand-rename.json')
 /** 没设置过时的默认称呼。 */

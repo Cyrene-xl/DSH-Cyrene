@@ -45,7 +45,8 @@
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { join } from 'node:path'
+import { dshHome } from '../paths.js';
 import { fileURLToPath } from 'node:url';
 
 import { loadWorldbookDirectory, worldbookDirectorySignature } from './parse.mjs';
@@ -53,7 +54,7 @@ import { buildCorpus, matchWorldbook, DEFAULT_MAX_ACTIVE, DEFAULT_MAX_CHARS, DEF
 import { assembleWorldbook } from './assemble.mjs';
 
 /** 跟其它 dsha-* 插件一样认 DSH_HOME。 */
-const HOME = process.env.DSH_HOME || join(process.env.HOME || '.', '.dsh');
+const HOME = dshHome();
 /** 配置文件；不存在就用默认值。 */
 const CONFIG_PATH = join(HOME, 'cyrene-worldbook.json');
 /** 诊断日志。踩过一次"静默失效"，所以必须有文件级可观测性。 */

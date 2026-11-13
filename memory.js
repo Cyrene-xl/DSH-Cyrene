@@ -24,9 +24,10 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dshHome } from './paths.js';
 
 /** 记忆文件位置：跟预设安装位置同源，都认 DSH_HOME。 */
-const HOME = process.env.DSH_HOME || `${process.env.HOME || '.'}/.dsh`;
+const HOME = dshHome();
 /** 记忆本体。纯 markdown，一行一条 `- 内容`，也允许自由写小标题和说明。 */
 const STORE = `${HOME}/cyrene-memory.md`;
 /**
