@@ -208,8 +208,13 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
   const stdIds = rowIds(upstream.stdRows);
   const mineIds = rowIds(parse(presetFile('cyrene-work')));
 
-  // 1) 我们**不能少**：少一行就是 DSH 升级后抄本漂移的直接证据
-  const missing = stdIds.filter((id) => !mineIds.includes(id));
+  // 1) 我们**不能少**：少一行就是 DSH 升级后抄本漂移的直接证据。
+  //    例外：0.2.2 已删除的包，故意不再抄（否则整条预设挂载失败）。
+  const INTENTIONALLY_REMOVED = [
+    'tool-subagent-list-agents',  // 0.2.2 已删除该子路径，发现能力并入主包
+    'workflow-worker-thread',     // 0.2.2 已移除该包
+  ];
+  const missing = stdIds.filter((id) => !mineIds.includes(id) && !INTENTIONALLY_REMOVED.includes(id));
   assert.deepEqual(
     missing,
     [],
@@ -225,8 +230,7 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
     /* 可选 provider：standard 里没有，本预设显式关掉留档。 */
     'tool-subagent-codex',
     'tool-subagent-claude-code',
-    /* workflow 默认关闭的三行：standard 里有 tool-workflow，没有这两个。 */
-    'workflow-worker-thread',
+    /* workflow 默认关闭：standard 里有 tool-workflow，没有 tool-ralph。 */
     'tool-ralph',
   ];
   const extra = mineIds.filter((id) => !stdIds.includes(id)).sort();
@@ -250,8 +254,9 @@ guarded('预设：cyrene-work 的工具行是 standard 的抄本 —— 只允�
   //    丢掉、于是又踩回同一个坑。这里点出来，改的话必须同时改这行。
   const INTENTIONALLY_DISABLED = [
     /* workflow 三件套 + ptc 变体：依赖 workflowEngine，起不来会连累整条预设。 */
-    'workflow-worker-thread',
     'tool-workflow',
+    /* 插件管理器/市场工具：0.2.2 standard 默认为开，本预设仍刻意关掉（只给设置页用）。 */
+    'tool-plugin-manager',
     'tool-ralph',
     'workflow-ptc',
     /* 可选 subagent provider：standard 里没有这两行，本预设留档但关掉。 */

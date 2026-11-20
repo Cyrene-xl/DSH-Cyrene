@@ -915,15 +915,16 @@
     - id: tool-subagent-control
       name: '@deepseek-ai/dsh-tool-subagent-control'
 
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-
     - id: tool-subagent
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: spawn
         toolName: subagent
+        # 0.2.1 用 modelSelectionSettings；0.2.2 改成 modelSelection + modelDiscovery。
+        # 两个都写：旧版忽略不认识的键，新版忽略旧键，升级时不用再改预设。
         modelSelectionSettings: true
+        modelSelection: true
+        modelDiscovery: true
         backgroundMode: continuable
 
     # Fork omits model selection so provider/model stay equal to the parent and
@@ -961,8 +962,8 @@
 
     # ── 以下三行默认 disabled: true（本项目改动，非上游写法）────────────────
     #
-    # 原因：这三行依赖 `workflowEngine` 这个服务，而它由 `workflow-worker-thread`
-    # 提供。**在某些部署里这个 worker 起不来**（实测：DSH 桌面端 0.2.0-rc.2），
+    # 原因：这三行依赖 `workflowEngine` 这个服务（0.2.1 由 `workflow-worker-thread`
+    # 提供；0.2.2 已移除那个包）。**在某些部署里这个 worker 起不来**（实测：DSH 桌面端 0.2.0-rc.2），
     # 于是 `tool-workflow` / `tool-ralph` 一直 "waiting for workflowEngine"，
     # 激活审计据此判定**整条预设「加载失败」** —— 用户看到的是两个预设里
     # 只有 `chat` 能用，而 `cyrene-work` 根本不出现。
@@ -978,11 +979,6 @@
       name: '@deepseek-ai/dsh-workflow-ptc'
       disabled: true
 
-    - id: workflow-worker-thread
-      name: '@deepseek-ai/dsh-workflow-worker-thread'
-      disabled: true
-      config:
-        provider: spawn
 
     - id: tool-workflow
       name: '@deepseek-ai/dsh-tool-workflow'

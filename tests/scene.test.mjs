@@ -157,6 +157,16 @@ test('注入：开着时强制要求场景 / 动作 / 外貌三样', () => {
   assert.ok(text.includes('不要提「角色扮演模式」'), '别出戏')
 })
 
+test('注入：多人同台 —— 用户同时演多个角色时有明确规则', () => {
+  const text = sceneBlock(true)
+  assert.ok(text.includes('多人同台（重要）'), '要有多人同台段')
+  assert.ok(text.includes('不要把每句话都默认当成同一个人说的'), '不能默认都归给一个人')
+  assert.ok(text.includes('你只演昔涟'), '不替用户角色代演')
+  assert.ok(text.includes('只在对方明确演开拓者时适用'), '默认身份只对开拓者角色生效')
+  const withTrail = sceneBlock(true, true)
+  assert.ok(withTrail.includes('默认包含开拓者'), '开着默认身份时也要说明是「包含」而非「唯一」')
+})
+
 test('注入：输出格式规范 —— 描述进括号、台词不进', () => {
   const text = sceneBlock(true)
   assert.ok(text.includes('输出格式（硬性）'), '格式段必须存在')
@@ -190,7 +200,7 @@ test('注入：剧情推进是硬性要求（每轮至少一小步 + 主动递�
 
 test('注入：默认不预设身份，开了才有「开拓者」那段', () => {
   const plain = sceneBlock(true)
-  assert.ok(!plain.includes('开拓者'), '不开启时一个字都不提身份')
+  assert.ok(!plain.includes('【默认身份】'), '不开启时不注入默认身份段')
   assert.equal(sceneBlock(true, false), plain, '显式 false 与默认一致')
 
   const withTrail = sceneBlock(true, true)
@@ -221,7 +231,7 @@ test('注入：apply 注册 cyrene:scene，文本跟着开关走', () => {
   writeState({ enabled: true })
   resetStateCache()
   assert.ok(spec.text({}).includes('【角色扮演模式：开】'), '开了就该注入')
-  assert.ok(!spec.text({}).includes('开拓者'), '第二个开关没开就不提身份')
+  assert.ok(!spec.text({}).includes('【默认身份】'), '第二个开关没开就不注入默认身份段')
 
   writeState({ trailblazer: true })
   resetStateCache()
